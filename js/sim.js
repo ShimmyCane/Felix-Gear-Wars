@@ -349,13 +349,13 @@
   // ---- units -------------------------------------------------------------------------------
   P.makeUnit = function (side, type, level, x, boss) {
     var d = F.UNITS[type], sm = F.SM[level - 1], es = side === 'enemy' ? this.es : { hp: 1, atk: 1, def: 1 };
-    var hp = d.hp * sm * es.hp, atk = d.atk * sm * es.atk, def = d.def * (1 + 0.4 * (level - 1)) * es.def, spd = d.speed, sc = 1 + (level - 1) * 0.1;
+    var hp = d.hp * sm * es.hp, atk = d.atk * sm * es.atk, def = d.def * (1 + 0.4 * (level - 1)) * es.def, spd = d.speed, sc = level >= F.BIG_LEVEL ? 2.8 : 1 + (level - 1) * 0.1;
     if (d.champ) sc = d.scale * (1 + (level - 1) * 0.08);
     var special = side === 'ally' && this.specialty === type;
     if (special) { hp *= F.SPECIALTY_BONUS; atk *= F.SPECIALTY_BONUS; }
     if (boss) { hp *= 9; atk *= 2.2; def *= 1.6; spd *= 0.85; sc = 2.8; }
     var u = { id: this.nid++, side: side, type: type, level: level, boss: !!boss, x: x, y: this.rnd() * 52, hp: hp, max: hp, atk: atk, def: def,
-      range: d.range * (boss ? 1.25 : 1), minRange: d.minRange || 0, speed: spd, cdMax: d.cd, cd: 0.3 + this.rnd() * 0.4, state: 'fall', t: 0,
+      range: d.range * (boss || level >= F.BIG_LEVEL ? 1.25 : 1), big: level >= F.BIG_LEVEL, minRange: d.minRange || 0, speed: spd, cdMax: d.cd, cd: 0.3 + this.rnd() * 0.4, state: 'fall', t: 0,
       anim: 'fall', at: 0, hitDone: false, special: special, champ: !!d.champ, fly: !!d.fly, slow: 0, healT: 1.2, tgt: 0, dir: side === 'ally' ? 1 : -1, scale: sc, charged: false, flash: 0, phase: this.rnd() * 6.28, dead: false, vx: 0 };
     this.units.push(u); return u;
   };
@@ -409,21 +409,24 @@
   // Monk: turns the nearest enemy in reach (not a champion or a boss) for a while. The turned unit fights for Felix, then goes back.
   P.monkWork = function (u, dt) {
     u.convT = (u.convT || 0) - dt; if (u.convT > 0 || u.state === 'fall' || u.state === 'getup' || u.state === 'dying') return;
-    var D = F.UNITS[u.type].convert, best = null, bd = 1e9, i, o;
+    var D = F.UNITS[u.type].convert, cands = [], i, o;
     for (i = 0; i < this.units.length; i++) {
       o = this.units[i];
       if (o.side !== 'enemy' || o.dead || o.state === 'dying' || o.state === 'fall' || o.champ || o.boss) continue;
-      var dx = Math.abs(o.x - u.x); if (dx <= D.range && dx < bd) { bd = dx; best = o; }
+      var dx = Math.abs(o.x - u.x); if (dx <= D.range) cands.push({ o: o, dx: dx });
     }
-    if (!best) { u.convT = 0.4; return; }                  // nobody in reach yet: look again soon
-    best.side = 'ally'; best.dir = 1; best.converted = D.time; best.anim = 'walk';
+    if (!cands.length) { u.convT = 0.4; return; }          // nobody in reach yet: look again soon
+    cands.sort(function (a, b) { return a.dx - b.dx; });
+    var n = u.big ? 2 : 1, time = D.time * (u.big ? 1.5 : 1);     // a big monk turns two, for longer
+    for (i = 0; i < Math.min(n, cands.length); i++) {
+      var best = cands[i].o; best.side = 'ally'; best.dir = 1; best.converted = time; best.anim = 'walk';
+      this.emit({ k: 'convert', x: best.x, y: best.y, unit: best.id });
+    }
     u.convT = D.cool;
-    this.emit({ k: 'convert', x: best.x, y: best.y, unit: best.id });
   };
   // Shield caster: is there an allied shield caster close enough to a point to take the blow?
   P.shieldAt = function (x, side) {
-    var R = F.UNITS.shield.aura;
-    for (var i = 0; i < this.units.length; i++) { var o = this.units[i]; if (o.side === side && o.type === 'shield' && !o.dead && o.state !== 'dying' && o.state !== 'fall' && Math.abs(o.x - x) <= R) return true; }
+    for (var i = 0; i < this.units.length; i++) { var o = this.units[i], R = F.UNITS.shield.aura * (o.big ? 1.5 : 1); if (o.side === side && o.type === 'shield' && !o.dead && o.state !== 'dying' && o.state !== 'fall' && Math.abs(o.x - x) <= R) return true; }
     return false;
   };
   // Fighters of one kind alive on that side (the cap per kind).
