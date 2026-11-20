@@ -2,23 +2,26 @@
 
 Unlocked after chapter 10 of book 1. Same rhythm as book 1: chapters of three levels, one new unit per chapter, a boss on level 3. Book 2 adds **resources and buildings** and **terrain**. There are **no pegs**.
 
-## Open questions (please answer before building)
+## Decisions (from the author)
 
-1. **Chapter count.** Ten (like book 1) or fifteen? The unit list below assumes fifteen.
-2. **Units per building.** Five buildings times two units is ten, not fifteen. Options: (a) three units per building, five buildings, fifteen units; (b) seven buildings, two units each; (c) keep ten units and cut the list to ten chapters.
-3. **Gears.** With no pegs, do buildings replace the gears entirely? My default: yes. Buildings are placed on a grid, and each one produces the units it lists.
-4. **"Jean Raitt".** Is this the farmer (a character), the farm's name, or something else? Default below: a farmer character.
-5. **Sequence notation.** "ABC DE, 2B2C2D2E2, 3B3C3D3E3" reads like: the first chapter introduces A, B, C; later chapters add a second and third step for each building. My default reading is in the sequence table below. Please confirm or correct it.
-6. **Shopping.** Do the resource buildings (farm, mine, sawmill, market) pay for buildings, or only for units? Default: units only, and buildings cost coins.
+1. **Fifteen chapters**, three levels each. Fifteen units, one new unit per chapter.
+2. **Up to three units per building.** Buildings can make one, two or three types.
+3. **No gears.** Buildings replace them. Units are shown at the top of the screen, where the pegboard used to be. Clicking a unit shows a countdown for every unit that building is making; a building can then be clicked again for its next unit.
+4. **Jean Raitt** is not a character. Farms are a resource building that produces food.
+5. **The unit schedule** (checked against the chapter numbers):
+   - Chapter 9: four buildings make two units each, and the fifth makes one: 9 units.
+   - Chapter 12: two buildings make three units each, and three make two: 12 units.
+   - Chapter 15: all five buildings make three: 15 units.
+6. **Resource buildings** can be upgraded. They cost coins, but may also use other resources. The author wants delayed satisfaction, and asks for balancing scripts and tests to propose the best mix.
 
 ## Resources (default)
 
 | Building | Makes | Rate | Notes |
 |---|---|---|---|
-| Farm (Jean Raitt) | food | steady, over time | the first building in chapter 1 |
-| Sawmill | wood | steady | builds barracks and stables |
-| Mine | runes | steady | needed for the strongest units |
-| Market | gold | steady, plus a bonus when sold | replaces the coin purse of book 1 |
+| Farm | food | steady, over time; upgradeable | the first resource building |
+| Sawmill | wood | steady; upgradeable | builds barracks and stables |
+| Mine | runes | steady; upgradeable | needed for the strongest units |
+| Market | gold | steady; upgradeable | replaces the coin purse of book 1 |
 
 ## Unit-producing buildings (default: five, two or three units each)
 
@@ -32,14 +35,12 @@ Each **barracks** (or other unit building) trains a unit by spending food and wa
 | Stables | riders, knights |
 | Church | monks, shield bearers |
 
-## Sequence (default reading of the notation)
+## Sequence (from the author's numbers)
 
-- Chapters 1 to 3: A, B, C (one new unit each, from the buildings above).
-- Chapters 4 to 6: the second unit of each of those buildings (the "2" set), one per chapter.
-- Chapters 7 to 9: the third unit of each building (the "3" set).
-- Chapter 10: the "E" building opens.
-
-This gives fifteen unit slots. It needs answers to questions 2 and 5 before it is final.
+- One new unit per chapter, fifteen in all.
+- Chapter 9: nine units, from four buildings with two each and one with one.
+- Chapter 12: twelve units, from two buildings with three each and three with two each.
+- Chapter 15: fifteen units, three from each of the five buildings.
 
 ## Terrain (new in book 2)
 
@@ -50,7 +51,7 @@ This gives fifteen unit slots. It needs answers to questions 2 and 5 before it i
 
 Terrain is data in `js/data.js` (per level), and the rules are in `js/sim.js`, as in book 1.
 
-## Build order (once the questions are answered)
+## Build order
 
 1. Resource buildings and food, with the barracks timer, in a single chapter (chapter 1).
 2. The remaining buildings and units, chapter by chapter.
