@@ -53,6 +53,7 @@
   // Game speeds (the speed button cycles through these).
   F.SPEEDS = [0.5, 1, 2, 4, 8];
   F.RENDER_SKIP_SPEED = 4;     // at this speed and up the screen is drawn one frame every 0.1 s (the game still runs every frame)
+  F.WAVE_BASE = 26;             // enemies in one wave at press 1 (harder modes allow more, see sim.js makeWave)
   F.modeOf = function (m) { return F.MODES[m] ? m : 'medium'; };
   F.modePress = function (mode, idx) { var m = F.modeOf(mode); return F.MODE_PRESS[m] * ((F.LEVEL_PRESS[m] && F.LEVEL_PRESS[m][idx]) || 1); };
 

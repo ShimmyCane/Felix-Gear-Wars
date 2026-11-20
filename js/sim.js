@@ -329,7 +329,9 @@
     var types = pool.map(function (tp, n) { return { t: tp, w: 1 + n * 0.35 + (n === pool.length - 1 ? 1.2 : 0) }; });
     var list = [], got = 0, guard = 0;
     var lv = F.enemyLevel(c, cfg.idx);           // the Horde trains: its gears get stronger along the fun curve
-    while (got < E && list.length < 26 && guard++ < 80) {
+    // a wave holds up to 26 fighters at press 1; harder modes allow bigger waves (the cap grows with the square root of the press)
+    var cap = Math.round(F.WAVE_BASE * Math.max(1, Math.sqrt(F.modePress(cfg.mode, cfg.idx))));
+    while (got < E && list.length < cap && guard++ < 160) {
       var tp = F.weightedPick(this.rnd, types); list.push({ type: tp, boss: false, level: lv }); got += F.unitPower(tp) * scale * F.SM[lv - 1];
     }
     var at = 0; list.forEach(function (s2) { s2.at = at; at += 0.8 + this.rnd() * 0.9; }, this);
