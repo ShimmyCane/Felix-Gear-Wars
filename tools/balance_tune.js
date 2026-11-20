@@ -96,6 +96,12 @@ function verify(runs) {
   var sim1 = new F.Sim(F.levelConfig(1, 1), { noEvents: true, seed: 3 }), sim4 = new F.Sim(F.levelConfig(2, 1), { noEvents: true, seed: 3 });
   check(sim1.fort.weapons.every(function (w) { return w.kind !== 'stone'; }), 'chapter 1 castle has no stones');
   check(sim4.fort.weapons.some(function (w) { return w.kind === 'stone'; }), 'chapter 2 castle has stones');
+  check(F.UNIT_CAP('spearman') === 5 && F.UNIT_CAP('shield') === 50 && F.UNIT_ORDER.length === 10, 'unit caps run 5 to 50 over ten kinds');
+  check(F.SPEEDS.join() === '0.5,1,2,4,8' && F.RENDER_SKIP_SPEED === 4, 'speeds 0.5 to 8, drawn every 0.1 s from 4x');
+  check(F.MODES.hard.holes > F.MODES.medium.holes && F.MODES.medium.holes > F.MODES.easy.holes, 'harder modes block more pegs');
+  check(F.MODES.hard.pace > F.MODES.medium.pace && F.MODES.medium.pace >= F.MODES.easy.pace, 'harder modes go slower');
+  var hs = new F.Sim(F.levelConfig(2, 2, { mode: 'hard' }), { noEvents: true, seed: 2 }), hc0 = hs.holeCost(); hs.holesCleared = 1;
+  check(F.HOLE_GROWTH > 1 && hs.holeCost() > hc0, 'clearing a peg costs more each time (' + hc0 + ' then ' + hs.holeCost() + ')');
   check(F.MODES.easy.lives >= F.MODES.medium.lives && F.MODES.medium.lives >= F.MODES.hard.lives, 'lives: easy >= medium >= hard');
   check(F.modePress('easy', 4) === F.MODE_PRESS.easy && F.MODE_PRESS.easy <= F.MODE_PRESS.medium && F.MODE_PRESS.medium <= F.MODE_PRESS.hard, 'press: easy <= medium <= hard');
   // win-rate bands on seeds the tuner did not use (base 9000+)
