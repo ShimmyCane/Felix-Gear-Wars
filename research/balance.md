@@ -103,6 +103,8 @@ c8l3   100%     0.0/60        3.00       185
 
 ## Knobs
 
+Difficulty modes (`F.MODES`): easy is the first version; medium and hard are tuned by `node tools/balance_tune.js tune medium|hard 6`, then written into the `tuned:begin` block of `js/data.js` with `apply`. `node tools/balance_tune.js verify` checks the rules and the bot's win rate on new seeds. Modes set the wave press (`F.MODE_PRESS` times `F.LEVEL_PRESS` per level) and the share of lives.
+
 `js/data.js`: `F.TUNE` (`rLow 0.4`, `rPeak 1.1`, `rIdx 1.1`, `short 0.6`, `mid 0.85`, `gearsPerLast 0.8`, `fort 700`, `fortPer 80`, `hp 0.09`, `atk 0.055`), `F.FUN` (3 and 7 minutes), `F.economy` (expected last wave `5 + level`), `F.castleUnits` (5 to 10), `HEART_PERIOD`, `BOSS_REVS`, `MAX_UNITS`, unit `tick0` and stats, `F.CHAMPS`, `SM`, `SPECIALTY_BONUS`.
 `js/sim.js`: `makeWave` (the wave model), `priceOf`, `buildStructures` (castle and tower guns), `TOWER_REBUILD` 45 s, the fade (2% of fortress health a second).
 Sweep a setting without editing the file: `node tools/balance_sim.js sweep 6 '{"rPeak":1.2,"rIdx":1.0}'`.

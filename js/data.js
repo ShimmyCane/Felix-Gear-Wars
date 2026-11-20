@@ -35,6 +35,18 @@
   // Opponents train: the level of an enemy gear follows the fun curve (c, 0 to 1). Level 2 from the back half of the hill (c over 0.6); level 3 only at the top of it on the later levels (idx 12 and up).
   F.enemyLevel = function (c, idx) { return 1 + (c > 0.6 ? 1 : 0) + (c > 0.92 && idx >= 12 ? 1 : 0); };
 
+  // ---- difficulty modes ---------------------------------------------------------------------
+  // lives: the share of a level's lives this mode gives. press: how hard the waves are (wave power against Felix's power, times this).
+  // The press numbers and per-level factors are tuned by tools/balance_tune.js against the bot (block below). Easy is the first version of the game.
+  F.MODES = { easy: { name: 'Easy', lives: 1 }, medium: { name: 'Medium', lives: 0.9 }, hard: { name: 'Hard', lives: 0.75 } };
+  var ONES = []; for (var oi = 0; oi < 24; oi++) ONES.push(1);
+  // tuned:begin
+  F.MODE_PRESS = { easy: 1, medium: 1.6, hard: 2.6 };
+  F.LEVEL_PRESS = { easy: ONES, medium: ONES, hard: ONES };
+  // tuned:end
+  F.modeOf = function (m) { return F.MODES[m] ? m : 'medium'; };
+  F.modePress = function (mode, idx) { var m = F.modeOf(mode); return F.MODE_PRESS[m] * ((F.LEVEL_PRESS[m] && F.LEVEL_PRESS[m][idx]) || 1); };
+
   // ---- fighters ---------------------------------------------------------------------------
   // tick0 = quarter turns of the heart one gear needs for one level-1 fighter. The spearman is the reference (12). The others follow
   // their power, so every gear makes about the same amount of attack, defence and health per minute: the archer matches the spearman,
@@ -294,7 +306,7 @@
     return {
       id: 'c' + ch + 'l' + lv, ch: ch, lv: lv, idx: idx, seed: seed, free: false, world: Math.round(F.VIEW_W * C.screens), towers: idx >= 9, biome: C.biome, title: C.title,
       board: { cols: C.cols, rows: C.rows, heart: lay.heart, holes: lay.holes, dormant: dorm },
-      lives: 20 + 5 * ch, coins: eco.coins, creep: eco.creep, gearTarget: eco.gearTarget, lastWave: eco.lastWave, dynamic: true, len: C.screens <= 1 ? F.TUNE.short : C.screens < 2 ? F.TUNE.mid : 1, waves: [], bossName: lv === 3 ? C.boss : null, bossType: lv === 3 ? C.fighter : null,
+      mode: F.modeOf(o.mode), lives: Math.round((20 + 5 * ch) * F.MODES[F.modeOf(o.mode)].lives), coins: eco.coins, creep: eco.creep, gearTarget: eco.gearTarget, lastWave: eco.lastWave, dynamic: true, len: C.screens <= 1 ? F.TUNE.short : C.screens < 2 ? F.TUNE.mid : 1, waves: [], bossName: lv === 3 ? C.boss : null, bossType: lv === 3 ? C.fighter : null,
       baseHp: F.TUNE.fort + F.TUNE.fortPer * idx, pool: pool, specials: F.unlockedSpecials(ch), quick: !!o.quick,
       story: F.STORIES[idx],
     };
@@ -310,7 +322,7 @@
     return {
       id: 'free', ch: 0, lv: 0, idx: idx, seed: 7, free: true, world: F.WORLD, towers: true, biome: 'fortress', title: 'Free-for-all',
       board: { cols: 9, rows: 4, heart: lay.heart, holes: lay.holes, dormant: [] },
-      lives: 60, coins: eco.coins, creep: eco.creep, gearTarget: eco.gearTarget, lastWave: eco.lastWave, dynamic: true, len: 1, waves: [],
+      mode: F.modeOf(o.mode), lives: Math.round(60 * F.MODES[F.modeOf(o.mode)].lives), coins: eco.coins, creep: eco.creep, gearTarget: eco.gearTarget, lastWave: eco.lastWave, dynamic: true, len: 1, waves: [],
       bossEvery: 5, bossName: null, baseHp: 99999, pool: pool, specials: ['boss', 'lightning', 'shuriken', 'rocket'],
       quick: !!o.quick,
       story: { cap: 'Free-for-all!', short: 'Every fighter, every gear. The Horde never stops. How long can you hold?',

@@ -60,6 +60,7 @@
     <button class="pHead" type="button" aria-expanded="false"><span class="icon">📈</span><span class="title">Fun curve</span><span class="mark">▸</span></button>
     <div class="pBody">
       <canvas id="funPlot" width="360" height="110" class="funPlot" aria-label="The fun curve of a level"></canvas>
+      <div class="setting"><label>Difficulty <small>easy is the first version; hard is much harder</small></label><div class="seg" data-key="mode"><button data-v="easy">Easy</button><button data-v="medium">Medium</button><button data-v="hard">Hard</button></div></div>
       <div class="setting"><label>Fun curve <small>show the hill in the corner while you play</small></label><div class="seg" data-key="showFun"><button data-v="0">Off</button><button data-v="1">On</button></div></div>
       <div class="setting"><label>Fun peak <small>the most exciting wave comes at <b id="funPeakVal">3</b> min</small></label><input id="funPeak" type="range" min="1" max="6" step="0.5" value="3" aria-label="Fun peak in minutes"></div>
       <div class="setting"><label>Level fades <small>the Horde loses heart at <b id="funFadeVal">7</b> min</small></label><input id="funFade" type="range" min="4" max="12" step="0.5" value="7" aria-label="Fade time in minutes"></div>

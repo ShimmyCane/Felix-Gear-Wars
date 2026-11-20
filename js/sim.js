@@ -282,8 +282,8 @@
   // peak, keep it exciting but not unfair, and ease off as the level fades). Free-for-all just keeps growing.
   P.makeWave = function (k) {
     var cfg = this.cfg, t = Math.max(0, this.t - this.startT), tm = t / 60, c, ratio;
-    if (cfg.free) { c = Math.min(1, 0.4 + 0.08 * k); ratio = (0.6 + 0.09 * k) * this.fun.ch; }
-    else { c = F.funCurve(tm, this.fun.peak / 60, this.fun.fade / 60); ratio = (F.TUNE.rLow + (F.TUNE.rPeak - F.TUNE.rLow) * c) * (1 + F.TUNE.rIdx * Math.min(1, cfg.idx / 23)) * (cfg.len || 1) * this.fun.ch; }
+    if (cfg.free) { c = Math.min(1, 0.4 + 0.08 * k); ratio = (0.6 + 0.09 * k) * this.fun.ch * F.modePress(cfg.mode, cfg.idx); }
+    else { c = F.funCurve(tm, this.fun.peak / 60, this.fun.fade / 60); ratio = (F.TUNE.rLow + (F.TUNE.rPeak - F.TUNE.rLow) * c) * (1 + F.TUNE.rIdx * Math.min(1, cfg.idx / 23)) * (cfg.len || 1) * this.fun.ch * F.modePress(cfg.mode, cfg.idx); }
     var es = this.es, scale = Math.sqrt(es.hp * es.atk), pool = cfg.pool, i;
     var E = this.playerPower(Math.min(30, this.gap)) * ratio;
     var floor = F.unitPower(pool[0]) * scale * (k === 0 ? 2 : 1.5);

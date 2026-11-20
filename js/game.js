@@ -20,7 +20,7 @@
   window.addEventListener('unhandledrejection', function (ev) { GW.err('Promise error', ev.reason); });
 
   // ---- settings and progress (device storage, always in try/catch) -----------------------------
-  var DEF = { showFun: 0, funPeak: 3, funFade: 7, challenge: 1, bossRevs: 100, voice: 'auto', heartSpeed: 1, theme: 'manuscript', sfx: 0.8, music: 0.5, speed: 1, quick: 0, follow: 1, reading: 'auto', showErrors: 0 };
+  var DEF = { mode: 'medium', showFun: 0, funPeak: 3, funFade: 7, challenge: 1, bossRevs: 100, voice: 'auto', heartSpeed: 1, theme: 'manuscript', sfx: 0.8, music: 0.5, speed: 1, quick: 0, follow: 1, reading: 'auto', showErrors: 0 };
   var S = Object.assign({}, DEF);
   try { var raw = JSON.parse(localStorage.getItem('fgw.settings') || '{}'); Object.keys(DEF).forEach(function (k) { if (raw[k] !== undefined) S[k] = raw[k]; }); } catch (e) { /* storage blocked */ }
   function saveSettings() { try { localStorage.setItem('fgw.settings', JSON.stringify(S)); } catch (e) { /* ignore */ } }
@@ -504,7 +504,7 @@
         var b = document.createElement('button'); b.type = 'button'; b.className = 'lvBtn'; var id = 'c' + C.n + 'l' + lv, st = P.stars[id] || 0, ok = unlocked(C.n, lv);
         b.disabled = !ok; b.setAttribute('aria-label', 'Chapter ' + C.n + ' level ' + lv);
         b.innerHTML = '<span class="lvNum">' + (lv === 3 ? '♛' : lv) + '</span><span class="lvStars">' + (ok ? '★'.repeat(st) + '☆'.repeat(3 - st) : '🔒') + '</span>';
-        b.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.levelConfig(C.n, lv, { quick: +S.quick })); });
+        b.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.levelConfig(C.n, lv, { quick: +S.quick, mode: S.mode })); });
         row.appendChild(b);
       })(lv);
       card.appendChild(row); box.appendChild(card);
@@ -537,7 +537,7 @@
   function startLevel() {
     Au.stopSay();
     var c = cfg; var bonus = Math.min(60, (P.fails[c.id] || 0) * 20);
-    var fresh = c.free ? F.freeConfig({ quick: +S.quick }) : F.levelConfig(c.ch, c.lv, { quick: +S.quick }); fresh.coins += bonus; fresh.story = c.story;
+    var fresh = c.free ? F.freeConfig({ quick: +S.quick, mode: S.mode }) : F.levelConfig(c.ch, c.lv, { quick: +S.quick, mode: S.mode }); fresh.coins += bonus; fresh.story = c.story;
     makeSim(fresh); show('play'); Au.init(); Au.mood('calm', fresh.ch);
     if (bonus) say('A few extra coins this time: +' + bonus);
     if (window.AppNotes) AppNotes.setContext({ item: fresh.id, label: fresh.title + ' ' + levelLabel() });
@@ -583,11 +583,12 @@
   function bindSettings() {
     document.querySelectorAll('.seg button').forEach(function (b) {
       b.addEventListener('click', function () {
-        var k = b.parentNode.getAttribute('data-key'), v = b.getAttribute('data-v'); S[k] = (k === 'theme' || k === 'reading' || k === 'voice') ? v : +v; saveSettings(); syncSettings();
+        var k = b.parentNode.getAttribute('data-key'), v = b.getAttribute('data-v'); S[k] = (k === 'theme' || k === 'reading' || k === 'voice' || k === 'mode') ? v : +v; saveSettings(); syncSettings();
         if (k === 'speed' && sim) sim.speed = +S.speed; Au.init(); Au.play('tap');
         if (k === 'theme') { if (screen === 'map') showMap(); }
         if (k === 'voice' && S.voice === 'off') Au.stopSay();
         if (k === 'quick') say(+S.quick ? 'Quick game: shorter waves' : 'Normal waves');
+        if (k === 'mode') say('Difficulty: ' + F.MODES[F.modeOf(S.mode)].name);
       });
     });
     function applyFun() {
@@ -609,7 +610,7 @@
     document.querySelectorAll('.pHead').forEach(function (h) {
       h.addEventListener('click', function () { var sec = h.parentNode, open = sec.getAttribute('data-collapsed') === 'true'; sec.setAttribute('data-collapsed', String(!open)); h.setAttribute('aria-expanded', String(open)); h.querySelector('.mark').textContent = open ? '▾' : '▸'; });
     });
-    $('btnFree').addEventListener('click', function () { $('drawer').hidden = true; Au.init(); showStory(F.freeConfig({ quick: +S.quick })); });
+    $('btnFree').addEventListener('click', function () { $('drawer').hidden = true; Au.init(); showStory(F.freeConfig({ quick: +S.quick, mode: S.mode })); });
     $('btnMap').addEventListener('click', function () { $('drawer').hidden = true; leaveLevel(); showMap(); });
     $('btnCheat').addEventListener('click', function () { if (sim && screen === 'play') { sim.coins += 25; Au.play('coin'); } else say('Start a level first'); });
     $('btnReset').addEventListener('click', function () {
@@ -619,10 +620,10 @@
     $('storyPlay').addEventListener('click', function () { Au.init(); startLevel(); });
     $('storyBack').addEventListener('click', function () { Au.stopSay(); showMap(); });
     $('storyListen').addEventListener('click', function () { if (Au.speaking()) { Au.stopSay(); listenState(false); } else playNarration(); });
-    $('resNext').addEventListener('click', function () { var i = cfg.idx + 1, ch = Math.floor(i / 3) + 1, lv = i % 3 + 1; showStory(F.levelConfig(ch, lv, { quick: +S.quick })); });
-    $('resRetry').addEventListener('click', function () { showStory(cfg.free ? F.freeConfig({ quick: +S.quick }) : F.levelConfig(cfg.ch, cfg.lv, { quick: +S.quick })); });
+    $('resNext').addEventListener('click', function () { var i = cfg.idx + 1, ch = Math.floor(i / 3) + 1, lv = i % 3 + 1; showStory(F.levelConfig(ch, lv, { quick: +S.quick, mode: S.mode })); });
+    $('resRetry').addEventListener('click', function () { showStory(cfg.free ? F.freeConfig({ quick: +S.quick, mode: S.mode }) : F.levelConfig(cfg.ch, cfg.lv, { quick: +S.quick, mode: S.mode })); });
     $('resMap').addEventListener('click', function () { showMap(); });
-    $('mapFree').addEventListener('click', function () { Au.init(); showStory(F.freeConfig({ quick: +S.quick })); });
+    $('mapFree').addEventListener('click', function () { Au.init(); showStory(F.freeConfig({ quick: +S.quick, mode: S.mode })); });
     $('verInfo').textContent = 'Felix Gear Wars ' + F.version;
   }
   GW.say = say;
