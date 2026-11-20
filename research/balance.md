@@ -2,6 +2,16 @@
 
 Made by `node tools/balance_sim.js all 5`: the same rules the game uses, played by a simple bot (it buys the first gear it can afford, merges into the better-connected gear, never moves a gear, never uses the boss gear). Re-run it after any change to `js/data.js` or `js/sim.js`. A real player, who moves gears, uses multipliers and counters, does better than this bot.
 
+## Review-note changes (after 0.6.0, not yet re-played by Felix)
+
+- Multipliers join the tray from chapter 3 (1X), chapter 4 (2X) and chapter 6 (4X), priced 15, 40, 110, 300. A chain passes at most 8x. A gear fed above 2x needs sqrt(gain / 2) times the ticks for each unit, and stores at most two units, so a crowd does not drop at once.
+- Splash hits the nearest five soldiers in full; the rest share half the blast evenly.
+- The castle has only archers (about two) before chapter 2; stones start at level four.
+- Enemy gears train up the fun curve: level 2 over 60% of the hill, level 3 late on chapters 5 to 8 (`F.enemyLevel`). With level 2 from the start of the hill, the bot's chapter 2 and 3 win rates fell to 40 to 60%; the milder rule keeps them near the 0.6.0 numbers below (5 runs each, so the numbers are noisy).
+- Free-for-all refresh costs 5 coins, plus 5 for every five gears.
+
+Bot campaign after these changes (5 runs): c2l1 80%, c2l2 100%, c2l3 80%, c3l1 80%, c3l2 100%, c3l3 100%, c6l1 80%, c6l3 60%, c7l1 60%, c7l2 80%, c8l1 100% (39 leaks). Level 1 and chapter 4 and 5 stay at 100%.
+
 ## What changed in 0.6.0
 
 - **A fun curve shapes every level.** Waves are no longer a fixed list: each wave is sized when it launches, from Felix's strength (the fighters alive plus what his gears will make before the wave arrives) times a target ratio that follows a hill: gentle at the start (0.4), most exciting at the **fun peak** (3 minutes, 1.1), easing off to nothing at the **fade time** (7 minutes). After the fade the Horde loses heart (the fortress loses 2% of its health a second), so a level ends at about 7 minutes. Both times and a Challenge multiplier are in ⚙️ (Fun curve). Pressure also rises with the level (`rIdx`).

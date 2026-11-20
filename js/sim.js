@@ -33,7 +33,7 @@
     this.startT = 0; this.faded = false;
     this.specialty = o.specialty || null;      // the culture's starred fighter (+25%); the screen sets it
     this.pool = cfg.pool.concat(cfg.specials || []);
-    this.pool.push('mult');
+    F.multTiers(cfg.free ? 0 : cfg.ch).forEach(function (v) { this.pool.push('mult@' + v); }, this);
     this.tray = [null, null, null];
     this.sideGain = [{}, {}, {}, {}];
     this.rollTray();
@@ -61,7 +61,9 @@
         weapons: weapons.map(function (w) { return { kind: w.kind, range: w.range * rs, min: (w.min || 0) * rs, cd: w.cd, t: w.cd * (0.4 + self.rnd() * 0.6), dmg: w.dps * w.cd * k, splash: w.splash || 0 }; }) }, extra || {});
       self.structs.push(s); return s;
     }
-    var castleW = [{ kind: 'arrow', range: 440, cd: 0.5, dps: 0.6 * D }, { kind: 'stone', range: 720, min: 180, cd: 3.5, dps: 0.4 * D / 1.5, splash: 70 }];
+    // The first levels have only archers in the castle (about two). Stones come from level four (chapter 2, level 1).
+    var castleW = idx >= 3 ? [{ kind: 'arrow', range: 440, cd: 0.5, dps: 0.6 * D }, { kind: 'stone', range: 720, min: 180, cd: 3.5, dps: 0.4 * D / 1.5, splash: 70 }]
+      : [{ kind: 'arrow', range: 440, cd: 0.5, dps: 0.3 * D }];
     this.castle = add('ally', 'castle', 90, 1e9, castleW, { targetable: false, invuln: true });
     this.fort = add('enemy', 'fortress', this.ebx + 60, cfg.baseHp, castleW, { invuln: !!cfg.free });
     if (cfg.towers) {
@@ -155,14 +157,15 @@
   // you can afford by the end follows the size of the enemy's last wave. Merging and selling bring the price down again.
   P.priceOf = function (type) {
     var n = 0; for (var i = 0; i < this.gears.length; i++) if (!this.gears[i].locked) n++;
-    return Math.round(F.gearCost(type) * (1 + (this.cfg.creep || 0) * n));
+    var p = F.trayParts(type);
+    return Math.round(F.gearValue(p.type, p.level) * (1 + (this.cfg.creep || 0) * n));
   };
-  P.sellValue = function (g) { return Math.floor(F.gearCost(g.type) * Math.pow(2, g.level - 1) * 0.5); };
+  P.sellValue = function (g) { return Math.floor(F.gearValue(g.type, g.level) * 0.5); };
 
   // Which gears get ticks from which side of the heart, and how many (multiplier gears multiply what passes through).
   P.recompute = function () {
     var self = this;
-    this.gears.forEach(function (g) { g.rate = 0; g.active = false; });
+    this.gears.forEach(function (g) { g.rate = 0; g.gmax = 0; g.active = false; });
     for (var s = 0; s < 4; s++) {
       var gain = {}; this.sideGain[s] = gain;
       var first = this.gearAt(this.heart.c + DIRS[s][0], this.heart.r + DIRS[s][1]);
@@ -171,7 +174,7 @@
       var queue = [first];
       while (queue.length) {
         var g = queue.shift();
-        var out = gain[g.id] * (g.type === 'mult' ? F.MULTV[g.level - 1] : 1);
+        var out = Math.min(F.MULTCAP, gain[g.id] * (g.type === 'mult' ? F.MULTV[g.level - 1] : 1));
         for (var d = 0; d < 4; d++) {
           var nc = g.c + DIRS[d][0], nr = g.r + DIRS[d][1];
           if (self.isHeart(nc, nr)) continue;
@@ -179,13 +182,13 @@
           if (h && (gain[h.id] || 0) < out) { gain[h.id] = out; queue.push(h); }
         }
       }
-      for (var id in gain) { var gg = this.gearById(+id); gg.rate += gain[id]; gg.active = true; }
+      for (var id in gain) { var gg = this.gearById(+id); gg.rate += gain[id]; gg.gmax = Math.max(gg.gmax, gain[id]); gg.active = true; }
     }
   };
 
   // ---- the tray and the shop ---------------------------------------------------------------
   P.rollOne = function () {
-    var pool = this.pool, w = pool.map(function (t) { return t === 'mult' ? 0.7 : t === 'boss' ? 0.35 : F.UNITS[t] ? 1 : 0.8; });
+    var pool = this.pool, w = pool.map(function (t) { return F.trayParts(t).type === 'mult' ? 0.7 : t === 'boss' ? 0.35 : F.UNITS[t] ? 1 : 0.8; });
     var tot = w.reduce(function (a, b) { return a + b; }, 0), x = this.rnd() * tot;
     for (var i = 0; i < pool.length; i++) { x -= w[i]; if (x <= 0) return pool[i]; }
     return pool[0];
@@ -195,8 +198,9 @@
     // always offer at least one fighter so a tray is never all specials
     if (!this.tray.some(function (t) { return F.UNITS[t]; })) this.tray[0] = this.cfg.pool[this.cfg.pool.length - 1];
   };
+  P.refreshCost = function () { var n = 0; for (var i = 0; i < this.gears.length; i++) if (!this.gears[i].locked) n++; return F.refreshCost(n); };
   P.refreshTray = function () {
-    var cost = 10; if (this.coins < cost) return false;
+    var cost = this.refreshCost(); if (this.coins < cost) return false;
     var old = this.tray.slice(); this.coins -= cost; this.spent += cost; this.rollTray();
     var self = this; this.undo.push(function () { self.tray = old; self.coins += cost; self.spent -= cost; });
     return true;
@@ -208,7 +212,7 @@
     var cost = this.priceOf(type);
     if (this.coins < cost) return 'poor';
     this.coins -= cost; this.spent += cost;
-    var g = this.addGear(type, 1, c, r, false);
+    var p = F.trayParts(type), g = this.addGear(p.type, p.level, c, r, false);
     var prev = type, self = this;
     this.tray[slot] = this.rollOne();
     this.recompute();
@@ -289,8 +293,9 @@
     E = Math.max(floor, E);
     var types = pool.map(function (tp, n) { return { t: tp, w: 1 + n * 0.35 + (n === pool.length - 1 ? 1.2 : 0) }; });
     var list = [], got = 0, guard = 0;
+    var lv = F.enemyLevel(c, cfg.idx);           // the Horde trains: its gears get stronger along the fun curve
     while (got < E && list.length < 26 && guard++ < 80) {
-      var tp = F.weightedPick(this.rnd, types); list.push({ type: tp, boss: false }); got += F.unitPower(tp) * scale;
+      var tp = F.weightedPick(this.rnd, types); list.push({ type: tp, boss: false, level: lv }); got += F.unitPower(tp) * scale * F.SM[lv - 1];
     }
     var at = 0; list.forEach(function (s2) { s2.at = at; at += 0.8 + this.rnd() * 0.9; }, this);
     if (boss) list.push({ type: cfg.free ? pool[pool.length - 1 - (k % 3)] : cfg.bossType, boss: true, at: at + 3 });
@@ -300,7 +305,7 @@
     this.waveIdx++;
     var w = this.makeWave(this.waveIdx), self = this;
     this.lastWaveInfo = w;
-    w.spawn.forEach(function (s) { self.queue.push({ at: self.t + s.at, type: s.type, boss: s.boss }); });
+    w.spawn.forEach(function (s) { self.queue.push({ at: self.t + s.at, type: s.type, boss: s.boss, level: s.level || 1 }); });
     this.emit({ k: 'wave', n: this.waveIdx + 1, total: this.waveCount, boss: w.spawn.some(function (s) { return s.boss; }), size: w.spawn.length });
     var nextAt = (this.waveIdx + 1) * this.gap;
     this.waveTimer = (this.waveIdx + 1 < this.waveCount && (this.cfg.free || nextAt < this.fun.fade)) ? this.gap : Infinity;
@@ -497,10 +502,14 @@
     if (p.splash) {
       this.emit({ k: 'boom', x: p.x1, y: p.y1, r: p.splash, kind: p.kind });
       var hits = this.units.filter(function (o) { return o.side === foes2 && o.state !== 'dying' && o.state !== 'fall' && !o.dead && Math.abs(o.x - p.x1) <= p.splash; });
-      hits.forEach(function (o) {
+      hits.sort(function (a, b) { return Math.abs(a.x - p.x1) - Math.abs(b.x - p.x1); });
+      // The nearest five take the full hit (less at the edge). Any others share half the blast, spread evenly, so a dense pack cannot all fall at once.
+      var direct = hits.slice(0, F.SPLASH_MAX), rest = hits.slice(F.SPLASH_MAX);
+      direct.forEach(function (o) {
         var fall = 1 - Math.abs(o.x - p.x1) / (p.splash * 1.4);
         L.hurt(o, dmgFrom(p.owner.atk, p.owner, o) * fall, null);
       });
+      rest.forEach(function (o) { L.hurt(o, dmgFrom(p.owner.atk * 0.5 / rest.length, p.owner, o), null); });
       this.hurtStructsAt(p.x1, p.splash, p.owner.atk * (F.UNITS[p.owner.type].siege || 1) * (p.fromStruct ? 0.5 : 1), p.side);
     } else {
       var tu = null; for (var m = 0; m < this.units.length; m++) if (this.units[m].id === p.tgt) tu = this.units[m];
@@ -518,11 +527,15 @@
       if (g.rate > 0 && g.type !== 'mult') { g.charge += g.rate * qt; this.produce(g); }
     }
   };
+  // A gear fed by a big multiplier needs more ticks for each unit: sqrt(gain / 2) times as many above 2x, so 8x is twice 2x, not four times.
+  P.gearNeed = function (g) { var base = F.ticksNeeded(g.type, g.level); return g.gmax > 2 ? base * Math.sqrt(g.gmax / 2) : base; };
   P.produce = function (g) {
-    var need = F.ticksNeeded(g.type, g.level); if (!need) return;
+    if (!F.ticksNeeded(g.type, g.level)) return;
+    var need = this.gearNeed(g);
+    if (g.charge > need * 2) g.charge = need * 2;          // at most two units stored: no single big drop
     var allies = 0; for (var i = 0; i < this.units.length; i++) if (this.units[i].side === 'ally') allies++;
     var guard = 0;
-    while (g.charge >= need && guard++ < 6) {
+    while (g.charge >= need && guard++ < 1) {
       if (F.UNITS[g.type]) {
         if (allies >= F.MAX_UNITS) { g.charge = need; return; }
         var x = this.dropX(g.c) + (this.rnd() - 0.5) * 24;
@@ -584,7 +597,7 @@
       for (i = this.queue.length - 1; i >= 0; i--) {
         var q = this.queue[i];
         if (this.t >= q.at && this.enemiesAlive() < F.MAX_UNITS) {
-          var e = this.makeUnit('enemy', q.type, 1, this.ebx + 20, q.boss);
+          var e = this.makeUnit('enemy', q.type, q.level || 1, this.ebx + 20, q.boss);
           e.state = 'go'; e.anim = 'walk'; this.queue.splice(i, 1);
           this.emit({ k: 'enemy', unit: e.id, boss: q.boss });
         }

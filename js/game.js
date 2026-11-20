@@ -20,7 +20,7 @@
   window.addEventListener('unhandledrejection', function (ev) { GW.err('Promise error', ev.reason); });
 
   // ---- settings and progress (device storage, always in try/catch) -----------------------------
-  var DEF = { funPeak: 3, funFade: 7, challenge: 1, bossRevs: 100, voice: 'auto', heartSpeed: 1, theme: 'manuscript', sfx: 0.8, music: 0.5, speed: 1, quick: 0, follow: 1, reading: 'auto', showErrors: 0 };
+  var DEF = { showFun: 0, funPeak: 3, funFade: 7, challenge: 1, bossRevs: 100, voice: 'auto', heartSpeed: 1, theme: 'manuscript', sfx: 0.8, music: 0.5, speed: 1, quick: 0, follow: 1, reading: 'auto', showErrors: 0 };
   var S = Object.assign({}, DEF);
   try { var raw = JSON.parse(localStorage.getItem('fgw.settings') || '{}'); Object.keys(DEF).forEach(function (k) { if (raw[k] !== undefined) S[k] = raw[k]; }); } catch (e) { /* storage blocked */ }
   function saveSettings() { try { localStorage.setItem('fgw.settings', JSON.stringify(S)); } catch (e) { /* ignore */ } }
@@ -221,12 +221,13 @@
       if (drag && drag.kind === 'card' && drag.slot === i && drag.moved) { c.globalAlpha = 0.4; }
       panel(c, r.x, r.y, r.w, r.h, sel ? Art.C(T.gold2) : Art.C(T.panel2), 14);
       if (type) {
-        var fake = { type: type, level: 1, charge: 0, need: F.ticksNeeded(type, 1), active: false, locked: false, pulse: 0 };
+        var tp = F.trayParts(type);
+        var fake = { type: tp.type, level: tp.level, charge: 0, need: F.ticksNeeded(tp.type, tp.level), active: false, locked: false, pulse: 0 };
         var gr = Math.min(r.w * 0.3, 34);
         c.save(); if (!can) c.globalAlpha *= 0.55;
         Art.drawGear(c, fake, r.x + r.w / 2, r.y + 14 + gr + 6, gr, tAnim * 0.6 * (i % 2 ? -1 : 1), { star: type === Art.specialty() });
         c.restore();
-        var nm = Art.unitName(type); txt(c, nm, r.x + r.w / 2, r.y + r.h - 44, 15, T.text, 'center', '800');
+        var nm = tp.type === 'mult' ? 'Multiplier ×' + F.MULTV[tp.level - 1] : Art.unitName(type); txt(c, nm, r.x + r.w / 2, r.y + r.h - 44, 15, T.text, 'center', '800');
         coinIcon(c, r.x + r.w / 2 - 20, r.y + r.h - 20, 10); txt(c, String(cost), r.x + r.w / 2 - 6, r.y + r.h - 19, 20, can ? T.text : Art.C('#c0392b'), 'left', '900');
       }
       c.globalAlpha = 1;
@@ -236,7 +237,7 @@
     var rb = { id: 'refresh', x: t.x + 12, y: by + 10, w: 120, h: 52 };
     panel(c, rb.x, rb.y + (rb.down ? 3 : 0), rb.w, rb.h, Art.C(T.btn), 14);
     c.save(); c.translate(rb.x + 30, rb.y + 26); c.strokeStyle = Art.ink; c.lineWidth = 3.2; c.lineCap = 'round'; c.beginPath(); c.arc(0, 0, 10, 0.3, Math.PI * 1.6); c.stroke(); c.beginPath(); c.moveTo(8, -12); c.lineTo(13, -3); c.lineTo(3, -3); c.closePath(); c.fillStyle = Art.ink; c.fill(); c.restore();
-    coinIcon(c, rb.x + 70, rb.y + 26, 9); txt(c, '10', rb.x + 84, rb.y + 27, 20, T.text, 'left', '900');
+    coinIcon(c, rb.x + 70, rb.y + 26, 9); txt(c, String(sim.refreshCost()), rb.x + 84, rb.y + 27, 20, T.text, 'left', '900');
     hudBtns.push(rb);
     var ix = t.x + 144, iw = t.w - 156;
     if (info && info.until > tAnim) { txt(c, info.a, ix, by + 16, 17, T.text, 'left', '800'); txt(c, info.b, ix, by + 40, 14, T.text, 'left', '600'); txt(c, info.c, ix, by + 62, 14, T.text, 'left', '600'); }
@@ -355,10 +356,10 @@
     var sh = shake > 0.3 ? [(Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake] : [0, 0]; c.translate(sh[0], sh[1]);
     if (sim) {
       hudBtns = [];
-      drawBattle(c); drawBoard(c); drawTray(c); drawHUD(c); drawMini(c); drawFun(c);
+      drawBattle(c); drawBoard(c); drawTray(c); drawHUD(c); drawMini(c); if (+S.showFun) drawFun(c);
       if (drag && drag.moved) {
         if (drag.kind === 'gear') { var g = drag.gear; g.need = F.ticksNeeded(g.type, g.level); Art.drawGear(c, g, drag.x, drag.y - 12, L.cs / 2 * 1.08, gearAngle(g), { glow: true }); }
-        else if (drag.kind === 'card') { var ty = sim.tray[drag.slot]; if (ty) Art.drawGear(c, { type: ty, level: 1, charge: 0, need: F.ticksNeeded(ty, 1), active: false, locked: false, pulse: 0 }, drag.x, drag.y - 12, L.cs / 2 * 1.08, tAnim, { glow: true }); }
+        else if (drag.kind === 'card') { var ty = sim.tray[drag.slot]; if (ty) { var tp = F.trayParts(ty); Art.drawGear(c, { type: tp.type, level: tp.level, charge: 0, need: F.ticksNeeded(tp.type, tp.level), active: false, locked: false, pulse: 0 }, drag.x, drag.y - 12, L.cs / 2 * 1.08, tAnim, { glow: true }); } }
       }
       if (banner) { var bt = banner.t, al = bt < 0.3 ? bt / 0.3 : bt > 2 ? Math.max(0, 1 - (bt - 2) / 0.6) : 1; c.save(); c.globalAlpha = al; var yy = L.bf.y + 56 - (1 - Math.min(1, bt / 0.3)) * 20; panel(c, W / 2 - 190, yy - 34, 380, 68, banner.boss ? Art.C('#e86a5a') : Art.C(T.panel), 20); txt(c, banner.text, W / 2, yy, 34, banner.boss ? '#fff' : T.text, 'center', '900'); c.restore(); }
       if (redFlash > 0) { var gr = c.createLinearGradient(0, 0, 220, 0); gr.addColorStop(0, 'rgba(220,40,40,' + (redFlash * 0.5).toFixed(2) + ')'); gr.addColorStop(1, 'rgba(220,40,40,0)'); c.fillStyle = gr; c.fillRect(0, L.bf.y, 260, L.bf.h); }
@@ -439,7 +440,7 @@
     if (d.kind === 'btn') { d.btn.down = false; if (hit(d.btn, x, y)) onButton(d.btn.id); return; }
     var cell = cellAt(x, y), tray = L.tray, inTray = x >= tray.x && x <= tray.x + tray.w && y >= tray.y && y <= tray.y + tray.h;
     if (d.kind === 'card') {
-      if (!d.moved) { selSlot = selSlot === d.slot ? -1 : d.slot; selGear = 0; Au.play('tap'); if (selSlot >= 0) setInfoFor(sim.tray[selSlot], 1, 'Tap a free peg to place it.'); return; }
+      if (!d.moved) { selSlot = selSlot === d.slot ? -1 : d.slot; selGear = 0; Au.play('tap'); if (selSlot >= 0) { var sp = F.trayParts(sim.tray[selSlot]); setInfoFor(sp.type, sp.level, 'Tap a free peg to place it.'); } return; }
       if (cell) buyAt(d.slot, cell[0], cell[1]);
     } else if (d.kind === 'gear') {
       if (!d.moved) { selGear = selGear === d.gear.id ? 0 : d.gear.id; selSlot = -1; Au.play('tap'); if (selGear) setInfoFor(d.gear.type, d.gear.level, d.gear.type === 'mult' ? 'Locked gears can only pass ticks.' : (d.gear.locked ? 'A sleeping gear: link a chain to wake it.' : 'ticks: ' + Math.floor(d.gear.charge) + ' / ' + F.ticksNeeded(d.gear.type, d.gear.level) + ' · per turn ' + d.gear.rate)); return; }

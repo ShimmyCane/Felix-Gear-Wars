@@ -20,7 +20,20 @@
   F.SPECIALTY_BONUS = 1.25;    // a culture's starred fighter gets +25% attack and health
   F.LEVEL_SPEED = 0.92;        // each merge level needs this much of the ticks: stats x2.2 for 8% less time, about 20% better than two side by side
   F.MULTV = [1, 2, 4, 8];      // multiplier gear values
+  F.MULTCAP = 8;               // a chain of multipliers never passes on more than 8x (22x used to break the screen)
+  F.MULT_COST = [15, 40, 110, 300];   // price of a multiplier by its value: doubling the heart speed costs more
   F.MAXLEVEL = 4;
+  F.SPLASH_MAX = 5;            // a splash hit takes at most this many soldiers at full strength; the rest share the spread
+  // Price, and sell value at half, of a gear: multipliers by their value, others by level (each merge doubles).
+  F.gearValue = function (type, level) { return type === 'mult' ? F.MULT_COST[level - 1] : F.gearCost(type) * Math.pow(2, level - 1); };
+  // Tray multipliers: 1X from chapter 3, 2X from chapter 4, 4X from chapter 6 (free-for-all has them all).
+  F.multTiers = function (ch) { if (!ch) return [1, 2, 3]; var t = []; if (ch >= 3) t.push(1); if (ch >= 4) t.push(2); if (ch >= 6) t.push(3); return t; };
+  // A tray entry is a type, or 'mult@N' for a multiplier of value N.
+  F.trayParts = function (t) { var m = /^mult@(\d)$/.exec(t || ''); return m ? { type: 'mult', level: +m[1] } : { type: t, level: 1 }; };
+  // Free-for-all refresh: 5 coins, plus 5 for every five gears on the pegboard.
+  F.refreshCost = function (gears) { return 5 + 5 * Math.floor(gears / 5); };
+  // Opponents train: the level of an enemy gear follows the fun curve (c, 0 to 1). Level 2 from the back half of the hill (c over 0.6); level 3 only at the top of it on the later levels (idx 12 and up).
+  F.enemyLevel = function (c, idx) { return 1 + (c > 0.6 ? 1 : 0) + (c > 0.92 && idx >= 12 ? 1 : 0); };
 
   // ---- fighters ---------------------------------------------------------------------------
   // tick0 = quarter turns of the heart one gear needs for one level-1 fighter. The spearman is the reference (12). The others follow
