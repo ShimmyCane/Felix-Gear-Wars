@@ -376,7 +376,7 @@
     return {
       id: 'c' + ch + 'l' + lv, ch: ch, lv: lv, idx: idx, seed: seed, free: false, world: Math.round(F.VIEW_W * C.screens), towers: idx >= 9, biome: C.biome, title: C.title,
       board: { cols: C.cols, rows: C.rows, heart: lay.heart, holes: holes, dormant: dorm },
-      mode: F.modeOf(o.mode), lives: Math.round((20 + 5 * ch) * F.MODES[F.modeOf(o.mode)].lives), coins: eco.coins, creep: eco.creep, gearTarget: eco.gearTarget, lastWave: eco.lastWave, dynamic: true, len: C.screens <= 1 ? F.TUNE.short : C.screens < 2 ? F.TUNE.mid : 1, waves: [], bossName: lv === 3 ? C.boss : null, bossType: lv === 3 ? C.fighter : null,
+      mode: F.modeOf(o.mode), lives: Math.round((20 + 5 * ch) * F.MODES[F.modeOf(o.mode)].lives), coins: Math.round(eco.coins * (C.endless ? 1.6 : 1)), creep: eco.creep, gearTarget: eco.gearTarget, lastWave: eco.lastWave, dynamic: true, len: C.screens <= 1 ? F.TUNE.short : C.screens < 2 ? F.TUNE.mid : 1, waves: [], bossName: lv === 3 ? C.boss : null, bossType: lv === 3 ? C.fighter : null,
       baseHp: F.TUNE.fort + F.TUNE.fortPer * idx, pool: pool, specials: F.unlockedSpecials(ch), quick: !!o.quick,
       story: F.STORIES[idx] || F.endStory(idx),
     };
@@ -392,7 +392,7 @@
     return {
       id: 'free', ch: 0, lv: 0, idx: idx, seed: 7, free: true, world: F.WORLD, towers: true, biome: 'fortress', title: 'Free-for-all',
       board: { cols: 9, rows: 4, heart: lay.heart, holes: lay.holes, dormant: [] },
-      mode: F.modeOf(o.mode), lives: Math.round(60 * F.MODES[F.modeOf(o.mode)].lives), coins: eco.coins, creep: eco.creep, gearTarget: eco.gearTarget, lastWave: eco.lastWave, dynamic: true, len: 1, waves: [],
+      mode: F.modeOf(o.mode), lives: Math.round(60 * F.MODES[F.modeOf(o.mode)].lives), coins: Math.round(eco.coins * 1.6), creep: eco.creep, gearTarget: eco.gearTarget, lastWave: eco.lastWave, dynamic: true, len: 1, waves: [],
       bossEvery: 5, bossName: null, baseHp: 99999, pool: pool, specials: ['boss', 'lightning', 'shuriken', 'rocket'],
       quick: !!o.quick,
       story: { cap: 'Free-for-all!', short: 'Every fighter, every gear. The Horde never stops. How long can you hold?',

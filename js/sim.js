@@ -455,6 +455,12 @@
     for (var i = 0; i < this.units.length; i++) { var a = this.units[i]; if (a.side === u.side && !a.dead && a.state !== 'dying' && a.hp < a.max * 0.6 && Math.abs(a.x - u.x) <= r) return true; }
     return false;
   };
+  // How far a fighter is ahead of the rearmost fighter on its side.
+  P.leadGap = function (u) {
+    var rear = u.x;
+    for (var i = 0; i < this.units.length; i++) { var o = this.units[i]; if (o.side === u.side && !o.dead && o.state !== 'dying' && o.state !== 'fall' && o.x < rear) rear = o.x; }
+    return u.x - rear;
+  };
   P.raisedAt = function (x, side) {
     for (var i = 0; i < this.raised.length; i++) { var z = this.raised[i]; if (z.side === side && Math.abs(z.x - x) <= z.r) return true; }
     return false;
@@ -515,7 +521,19 @@
     }
     var target = D.power === 'pierce' ? null : this.pickTarget(u), dir = u.dir, dist;
     var st = target ? null : this.pickStruct(u);
-    if (target || st) {
+    // positioning: level 5 heals slowly out of battle; level 4 falls back to shelter when badly hurt under attack; level 2 waits for its group
+    var near = this.foes(u).some(function (o) { return Math.abs(o.x - u.x) <= 300; });
+    if (u.side === 'ally') {
+      if (near) u.outT = 0; else u.outT = (u.outT || 0) + dt;
+      if (u.level >= 5 && u.outT > 3 && u.hp < u.max) u.hp = Math.min(u.max, u.hp + 0.03 * u.max * dt);
+      if (u.level >= 4) {
+        if (near && u.hp < 0.4 * u.max) u.retreat = true;
+        else if (u.retreat && (!near || u.hp >= 0.8 * u.max)) u.retreat = false;
+      }
+    }
+    if (u.retreat && u.x > 110 && !(target && Math.abs(target.x - u.x) <= u.range)) {
+      u.x -= dir * spd * dt; u.anim = 'walk';                     // fall back toward the castle and the other fighters
+    } else if (target || st) {
       dist = st ? Math.abs(st.x - u.x) : Math.abs(target.x - u.x);
       if (!st && dist > u.range) {
         u.x += dir * spd * dt; u.anim = 'walk';
@@ -526,6 +544,7 @@
     } else {
       if (this.tooClose(u)) { u.x -= dir * spd * 0.6 * dt; u.anim = 'walk'; }
       else if (u.side === 'ally' && u.x >= this.ebx + 50) u.anim = 'idle';
+      else if (u.side === 'ally' && u.level >= 2 && this.leadGap(u) > 260) u.anim = 'idle';   // too far ahead: wait for the others
       else { u.x += dir * spd * dt; u.anim = 'walk'; }
     }
     if (u.side === 'enemy' && u.x <= F.BASE_X) {         // got through: one life
