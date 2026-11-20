@@ -59,9 +59,10 @@
   var sim = null, cfg = null, scroll = 0, manualUntil = 0, paused = false, screen = 'map', tAnim = 0, last = 0;
   var parts = [], bolts = [], falls = {}, banner = null, shake = 0, redFlash = 0, beat = 0, selSlot = -1, selGear = 0, info = null, toast = null, endTimer = 0, ended = false;
   var drag = null, hudBtns = [], pointers = {};
+  var pendingHole = null, lastDraw = 0;     // a peg waiting for its second tap to be cleared; last time the screen was drawn
   function makeSim(c) {
     cfg = c; sim = new F.Sim(c, { seed: (Math.random() * 1e9) | 0, heartSpeed: +S.heartSpeed || 1, specialty: Art.specialty(), funPeak: +S.funPeak || 3, funFade: +S.funFade || 7, challenge: +S.challenge || 1 });
-    sim.speed = +S.speed; scroll = 0; parts = []; bolts = []; falls = {}; banner = null; selSlot = -1; selGear = 0; info = null; ended = false; endTimer = 0; paused = false;
+    sim.speed = F.SPEEDS.indexOf(+S.speed) >= 0 ? +S.speed : 1; pendingHole = null; scroll = 0; parts = []; bolts = []; falls = {}; banner = null; selSlot = -1; selGear = 0; info = null; ended = false; endTimer = 0; paused = false;
     layout();
   }
 
@@ -87,6 +88,7 @@
     else if (b.icon === 'next') { c.beginPath(); c.moveTo(-14, -10); c.lineTo(0, 0); c.lineTo(-14, 10); c.closePath(); c.fill(); c.beginPath(); c.moveTo(0, -10); c.lineTo(14, 0); c.lineTo(0, 10); c.closePath(); c.fill(); }
     else if (b.icon === 'undo') { c.beginPath(); c.arc(0, 2, 10, Math.PI * 1.15, Math.PI * 2.05); c.stroke(); c.beginPath(); c.moveTo(-14, -3); c.lineTo(-9, -12); c.lineTo(-3, -4); c.closePath(); c.fill(); }
     else if (b.icon === 'home') { c.beginPath(); c.moveTo(-12, 0); c.lineTo(0, -12); c.lineTo(12, 0); c.stroke(); c.strokeRect(-8, 0, 16, 11); }
+    else if (b.icon === 'merge') { c.beginPath(); c.arc(-9, 0, 6, 0, TAU); c.stroke(); c.beginPath(); c.arc(7, 0, 6, 0, TAU); c.stroke(); c.beginPath(); c.moveTo(-1, -1); c.lineTo(3, 0); c.lineTo(-1, 1); c.stroke(); }
     else if (b.icon === 'speed') { c.font = '900 22px ' + SANS; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('×' + sim.speed, 0, 1); }
     c.restore();
     if (b.label) txt(c, b.label, b.x + b.w / 2 - 6, b.y + b.h / 2 + 1, 22, Art.ink, 'left', '900');
@@ -116,7 +118,9 @@
       switch (e.k) {
         
         case 'place': Au.play('place'); break;
-        case 'merge': Au.play('merge'); var gm = sim.gearById(e.id); if (gm) { p = gearPos(gm.c, gm.r); sparks(p[0], p[1], 22, '#fff2a0'); ring(p[0], p[1], 50); } break;
+        case 'merge': Au.play('merge'); var gm = sim.gearById(e.id);
+          if (gm) { p = gearPos(gm.c, gm.r); sparks(p[0], p[1], 34, '#fff2a0'); ring(p[0], p[1], 50); ring(p[0], p[1], 84, '#ffd24a'); puff(p[0], p[1], 12, '#fff7d0', 40, 20); floatText(p[0], p[1] - 36, 'Level ' + e.level + '!', '#ffe27a'); }
+          break;
         case 'pop': if (e.champ) { banner = { text: 'A champion!', t: 0, boss: false }; Au.play('horn', false); } p = gearPos(e.c, e.r); falls[e.unit] = { sx: p[0], sy: p[1] }; Au.play('pop', e.type); sparks(p[0], p[1] + 20, 8, '#fff7c8'); puff(p[0], p[1] + 28, 4, '#fff7e0', 20, 10); break;
         case 'land': puff(e.x - scroll, Art.groundY(L.bf) + 14 + e.y, 7, '#cdbf9e', 28, 10); Au.play('land'); break;
         case 'slash': sparks(e.x - scroll, Art.groundY(L.bf) - 30 + (e.y || 0), 6, e.side === 'ally' ? '#fff2a0' : '#ffb0a0'); Au.play('slash', e.type); break;
@@ -137,6 +141,8 @@
         case 'structhit': if (e.kind === 'fortress' || e.kind.indexOf('tower') === 0) { sparks(e.x - scroll, Art.groundY(L.bf) - 50, 4, '#ffd090'); } Au.play('base'); break;
         case 'structdown': if (e.kind !== 'fortress') { puff(e.x - scroll, Art.groundY(L.bf) - 30, 22, '#8a7a68', 90, 40); sparks(e.x - scroll, Art.groundY(L.bf) - 40, 16, '#ffb050'); shake = Math.max(shake, 8); Au.play('boom'); say(e.side === 'enemy' ? 'An enemy tower fell!' : 'Your tower fell. It will be rebuilt.'); } break;
         case 'structup': ring(e.x - scroll, Art.groundY(L.bf) - 40, 60, '#fff2a0'); sparks(e.x - scroll, Art.groundY(L.bf) - 40, 12, '#fff2a0'); Au.play('merge'); break;
+        case 'convert': p = [e.x - scroll, Art.groundY(L.bf) - 40]; ring(p[0], p[1], 46, '#c7f0a0'); floatText(p[0], p[1] - 40, 'Turned!', '#c7f0a0'); Au.play('merge'); break;
+        case 'shielded': p = [e.x - scroll, Art.groundY(L.bf) - 30]; ring(p[0], p[1], 40, '#9fd0ff'); sparks(p[0], p[1], 10, '#cfe8ff'); Au.play('land'); break;
         case 'basehit': Au.play('base'); sparks(sim.ebx - scroll + 60, Art.groundY(L.bf) - 40, 6, '#ffd090'); break;
         case 'basefall': shake = 14; Au.play('boom'); puff(sim.ebx - scroll + 80, Art.groundY(L.bf) - 50, 30, '#7a6a60', 160, 40); break;
         case 'end': ended = true; endTimer = 1.2; Au.mood('off'); Au.play(e.win ? 'win' : 'lose'); break;
@@ -158,7 +164,7 @@
     var army = sim.alliesAlive(); txt(c, 'Army ' + army + '/' + F.MAX_UNITS, 450, hy + 39, 16, army >= F.MAX_UNITS ? Art.C('#c0392b') : T.text, 'left', '700');
     var bx = W - 34 - 68;
     function add(id, icon, w, fill) { var b = { id: id, icon: icon, x: bx - (w - 64), y: hy + 4, w: w, h: 48, fill: fill }; bx -= w + 8; hudBtns.push(b); return b; }
-    add('home', 'home', 64); add('pause', paused ? 'play' : 'pause', 64); add('speed', 'speed', 64); add('undo', 'undo', 64);
+    add('merge', 'merge', 64); add('home', 'home', 64); add('pause', paused ? 'play' : 'pause', 64); add('speed', 'speed', 64); add('undo', 'undo', 64);
     if (sim.status === 'build') add('go', 'play', 124, Art.C('#8fd18a')).label = 'Start';
     else if (sim.status === 'running' && sim.waveIdx + 1 < sim.waveCount && sim.waveTimer > 2) add('next', 'next', 96, Art.C('#8fd18a'));
     hudBtns.forEach(function (b) { button(c, b); });
@@ -189,6 +195,7 @@
       if (sim.isHole(cc, r)) {
         c.beginPath(); c.arc(x, y, L.cs * 0.4, 0, TAU); c.fillStyle = 'rgba(30,20,10,0.55)'; c.fill(); c.lineWidth = 2; c.strokeStyle = Art.ink; c.stroke();
         c.beginPath(); c.moveTo(x - 12, y - 12); c.lineTo(x + 12, y + 12); c.moveTo(x + 12, y - 12); c.lineTo(x - 12, y + 12); c.lineWidth = 3; c.stroke();
+        if (pendingHole && pendingHole.c === cc && pendingHole.r === r) { c.strokeStyle = Art.C('#ffd24a'); c.lineWidth = 3; c.beginPath(); c.arc(x, y, L.cs * 0.5, 0, TAU); c.stroke(); coinIcon(c, x - 18, y - L.cs * 0.62, 9); txt(c, String(sim.holeCost()), x - 6, y - L.cs * 0.62 + 1, 18, Art.C('#ffe27a'), 'left', '900'); }
       } else if (!sim.isHeart(cc, r)) { c.beginPath(); c.arc(x, y, 4, 0, TAU); c.fillStyle = Art.C(T.gold); c.fill(); c.lineWidth = 1.5; c.strokeStyle = Art.ink; c.stroke(); }
     }
     // drop-target hints while dragging
@@ -380,7 +387,9 @@
         handleEvents(); updateFx(dt); updateCamera(dt);
         if (ended && screen === 'play') { endTimer -= dt; if (endTimer <= 0) showResult(); }
       }
-      drawAll();
+      // at 4x and 8x the screen is drawn one frame in every 0.1 s (the game itself still runs every frame)
+      var skip = sim && screen === 'play' && sim.speed >= F.RENDER_SKIP_SPEED && !drag && ts - lastDraw < 100;
+      if (!skip) { drawAll(); lastDraw = ts; }
     } catch (e) { GW.err('Draw error', e); }
     requestAnimationFrame(frame);
   }
@@ -447,6 +456,8 @@
       if (inTray) { if (sim.sellGear(d.gear)) { Au.play('sell'); say('Sold'); } else say('This gear is locked'); }
       else if (cell) { var res = sim.moveGear(d.gear, cell[0], cell[1]); if (res === 'no' && sim.gearAt(cell[0], cell[1]) && sim.gearAt(cell[0], cell[1]).locked) say('Locked'); if (res === 'moved' || res === 'swapped') Au.play('place'); }
     } else if (d.kind === 'cell') {
+      if (!d.moved && sim.isHole(d.cell[0], d.cell[1])) { holeTap(d.cell[0], d.cell[1]); return; }
+      pendingHole = null;
       if (!d.moved && selSlot >= 0) buyAt(selSlot, d.cell[0], d.cell[1]);
       else if (!d.moved) { selGear = 0; }
     } else if (d.kind === 'pan') {
@@ -455,6 +466,14 @@
   }
   cv.addEventListener('pointerup', endDrag);
   cv.addEventListener('pointercancel', function () { if (drag && drag.btn) drag.btn.down = false; drag = null; });
+  // A blocked peg: the first tap shows its price, the second tap pays and clears it.
+  function holeTap(c, r) {
+    if (pendingHole && pendingHole.c === c && pendingHole.r === r) {
+      var res = sim.clearHole(c, r), p = gearPos(c, r);
+      if (res === 'ok') { pendingHole = null; Au.play('merge'); sparks(p[0], p[1], 10, '#fff2a0'); say('Peg cleared. Next one costs ' + sim.holeCost()); }
+      else { Au.play('nope'); say('Not enough coins'); }
+    } else { pendingHole = { c: c, r: r }; Au.play('tap'); say('Clear this peg for ' + sim.holeCost() + ' coins? Tap it again to pay'); }
+  }
   function buyAt(slot, c, r) {
     var res = sim.buy(slot, c, r);
     if (res === 'ok') { selSlot = -1; var g = sim.gearAt(c, r); var p = gearPos(c, r); puff(p[0], p[1] + 20, 5, '#fff', 30, 10); }
@@ -466,7 +485,8 @@
     if (id === 'go') { sim.start(); Au.mood('calm', cfg.ch); if (sim.status === 'running') Au.mood('battle', cfg.ch); }
     else if (id === 'next') sim.callNext();
     else if (id === 'pause') { paused = !paused; }
-    else if (id === 'speed') { sim.speed = sim.speed >= 3 ? 1 : sim.speed + 1; S.speed = sim.speed; saveSettings(); syncSettings(); }
+    else if (id === 'speed') { var si = F.SPEEDS.indexOf(sim.speed); sim.speed = F.SPEEDS[(si + 1) % F.SPEEDS.length]; S.speed = sim.speed; saveSettings(); syncSettings(); say('Speed ×' + sim.speed); }
+    else if (id === 'merge') { var nm = sim.autoMerge(); if (nm) { Au.play('merge'); say('Merged ' + nm + (nm === 1 ? ' pair' : ' pairs')); } else say('Nothing to merge'); }
     else if (id === 'undo') { if (sim.undoLast()) Au.play('undo'); else say('Nothing to undo'); }
     else if (id === 'refresh') { if (!sim.refreshTray()) { Au.play('nope'); say('Not enough coins'); } else Au.play('tap'); }
     else if (id === 'home') { leaveLevel(); showMap(); }
@@ -596,7 +616,7 @@
       $('funFade').value = S.funFade; $('funPeakVal').textContent = S.funPeak; $('funFadeVal').textContent = S.funFade;
       var ch = +S.challenge; $('challengeVal').textContent = ch < 0.9 ? 'softer (' + ch.toFixed(2) + ')' : ch > 1.1 ? 'harder (' + ch.toFixed(2) + ')' : 'normal';
       saveSettings(); drawFunPlot();
-      if (sim) { var qk = cfg.quick ? 0.6 : 1; sim.fun.peak = S.funPeak * 60 * qk; sim.fun.fade = S.funFade * 60 * qk; sim.fun.ch = ch; if (!cfg.free) sim.waveCount = Math.max(sim.waveIdx + 1, Math.floor(sim.fun.fade / sim.gap)); }
+      if (sim) { var qk = cfg.quick ? 0.6 : 1; sim.fun.peak = S.funPeak * 60 * qk * sim.pace; sim.fun.fade = S.funFade * 60 * qk * sim.pace; sim.fun.ch = ch; if (!cfg.free) sim.waveCount = Math.max(sim.waveIdx + 1, Math.floor(sim.fun.fade / sim.gap)); }
     }
     ['funPeak', 'funFade', 'challenge'].forEach(function (k) { $(k).addEventListener('input', function () { S[k] = +this.value; applyFun(); }); });
     GW.applyFun = applyFun;

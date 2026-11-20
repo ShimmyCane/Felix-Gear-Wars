@@ -38,12 +38,19 @@
   // ---- difficulty modes ---------------------------------------------------------------------
   // lives: the share of a level's lives this mode gives. press: how hard the waves are (wave power against Felix's power, times this).
   // The press numbers and per-level factors are tuned by tools/balance_tune.js against the bot (block below). Easy is the first version of the game.
-  F.MODES = { easy: { name: 'Easy', lives: 1 }, medium: { name: 'Medium', lives: 0.9 }, hard: { name: 'Hard', lives: 0.75 } };
+  // pace: the time between waves and the length of the hill (medium and hard go slower and more deliberately). holes: extra blocked pegs.
+  F.MODES = { easy: { name: 'Easy', lives: 1, pace: 1, holes: 0 }, medium: { name: 'Medium', lives: 0.9, pace: 1.25, holes: 2 }, hard: { name: 'Hard', lives: 0.75, pace: 1.5, holes: 4 } };
+  F.modePace = function (mode) { return F.MODES[F.modeOf(mode)].pace; };
   var ONES = []; for (var oi = 0; oi < 24; oi++) ONES.push(1);
   // tuned:begin
   F.MODE_PRESS = { easy: 1, medium: 1.6, hard: 2.6 };
   F.LEVEL_PRESS = { easy: ONES, medium: ONES, hard: ONES };
   // tuned:end
+  // Removable pegs: tap a blocked peg to see its price, tap again to pay. Each one cleared costs more than the last.
+  F.HOLE_BASE = 20; F.HOLE_GROWTH = 2;
+  // Game speeds (the speed button cycles through these).
+  F.SPEEDS = [0.5, 1, 2, 4, 8];
+  F.RENDER_SKIP_SPEED = 4;     // at this speed and up the screen is drawn one frame every 0.1 s (the game still runs every frame)
   F.modeOf = function (m) { return F.MODES[m] ? m : 'medium'; };
   F.modePress = function (mode, idx) { var m = F.modeOf(mode); return F.MODE_PRESS[m] * ((F.LEVEL_PRESS[m] && F.LEVEL_PRESS[m][idx]) || 1); };
 
@@ -69,8 +76,14 @@
       vs: { tank: 1.6, knight: 1.3 }, magic: true, splash: 70, order: 7 },
     catapult: { name: 'Catapult', cost: 90, tick0: 36, hp: 95, atk: 30, def: 6, range: 560, minRange: 170, speed: 22, cd: 3.2, kind: 'ranged',
       vs: { tank: 1.3 }, splash: 80, siege: 2.2, order: 8 },
+    // tier 9 and 10. The monk walks in among the enemy and turns one of them for a while (it fights for Felix, then wanders home).
+    // The shield caster's aura blocks every catapult stone that lands near it.
+    monk: { name: 'Monk', cost: 90, tick0: 30, hp: 110, atk: 9, def: 6, range: 50, speed: 34, cd: 1.2, kind: 'melee', convert: { range: 240, time: 12, cool: 9 }, order: 9 },
+    shield: { name: 'Shield caster', cost: 110, tick0: 36, hp: 120, atk: 8, def: 12, range: 50, speed: 30, cd: 1.3, kind: 'melee', aura: 250, order: 10 },
   };
-  F.UNIT_ORDER = ['spearman', 'archer', 'fighter', 'assassin', 'knight', 'tank', 'mage', 'catapult'];
+  F.UNIT_ORDER = ['spearman', 'archer', 'fighter', 'assassin', 'knight', 'tank', 'mage', 'catapult', 'monk', 'shield'];
+  // Most fighters of one kind on the field: 5 for tier 1 up to 50 for tier 10 (the order above). The free-for-all has them all.
+  F.UNIT_CAP = function (type) { var i = F.UNIT_ORDER.indexOf(type); return i < 0 ? F.MAX_UNITS : 5 * (i + 1); };
 
   // ---- champions: what a boss gear makes. Each is a different awesome unit with its own power --------------------
   F.CHAMPS = {
@@ -290,6 +303,14 @@
     var seed = 1000 + idx * 77 + (o.seedOffset || 0);
     var rnd = F.rng(seed);
     var lay = layout(C.cols, C.rows, idx, rnd);
+    // the harder modes block more pegs (drawn with the same random source, after the layout, so easy levels do not change)
+    var holes = lay.holes.slice(), extra = F.MODES[F.modeOf(o.mode)].holes || 0, tries2 = 0;
+    while (extra > 0 && tries2++ < 400) {
+      var hc2 = Math.floor(rnd() * C.cols), hr2 = Math.floor(rnd() * C.rows);
+      if (Math.abs(hc2 - lay.heart.c) + Math.abs(hr2 - lay.heart.r) < 2) continue;
+      if (holes.some(function (h) { return h[0] === hc2 && h[1] === hr2; })) continue;
+      holes.push([hc2, hr2]); extra--;
+    }
     var pool = F.unlockedFighters(ch);
     var eco = F.economy(idx);
     // dormant bonus gears, far from the heart, wake when a chain reaches them
@@ -299,13 +320,13 @@
     while (dorm.length < nd && tries++ < 200) {
       var c = Math.floor(rnd() * C.cols), r = Math.floor(rnd() * C.rows);
       if (Math.abs(c - lay.heart.c) + Math.abs(r - lay.heart.r) < 3) continue;
-      if (lay.holes.some(function (h) { return h[0] === c && h[1] === r; })) continue;
+      if (holes.some(function (h) { return h[0] === c && h[1] === r; })) continue;
       if (dorm.some(function (d) { return d.c === c && d.r === r; })) continue;
       dorm.push({ type: pool[Math.floor(rnd() * pool.length)], level: idx > 12 ? 2 : 1, c: c, r: r });
     }
     return {
       id: 'c' + ch + 'l' + lv, ch: ch, lv: lv, idx: idx, seed: seed, free: false, world: Math.round(F.VIEW_W * C.screens), towers: idx >= 9, biome: C.biome, title: C.title,
-      board: { cols: C.cols, rows: C.rows, heart: lay.heart, holes: lay.holes, dormant: dorm },
+      board: { cols: C.cols, rows: C.rows, heart: lay.heart, holes: holes, dormant: dorm },
       mode: F.modeOf(o.mode), lives: Math.round((20 + 5 * ch) * F.MODES[F.modeOf(o.mode)].lives), coins: eco.coins, creep: eco.creep, gearTarget: eco.gearTarget, lastWave: eco.lastWave, dynamic: true, len: C.screens <= 1 ? F.TUNE.short : C.screens < 2 ? F.TUNE.mid : 1, waves: [], bossName: lv === 3 ? C.boss : null, bossType: lv === 3 ? C.fighter : null,
       baseHp: F.TUNE.fort + F.TUNE.fortPer * idx, pool: pool, specials: F.unlockedSpecials(ch), quick: !!o.quick,
       story: F.STORIES[idx],

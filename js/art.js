@@ -533,6 +533,25 @@
     var gl = a >= 0 ? Math.sin(a * Math.PI) : 0.25; c.fillStyle = 'rgba(255,240,170,' + (0.25 + gl * 0.4).toFixed(2) + ')'; c.beginPath(); c.arc(72, by - 60, 6 + gl * 10, 0, TAU); c.fill();
   };
 
+  DRAW.monk = function (c, st) {          // brown habit, a tonsure, a staff with a cross
+    var a = st.a, sw = a >= 0 ? lerp(-1.4, 0.2, ease(a)) : -0.3;
+    legs(c, st); torso(c, st, { col: st.F('#8d6a3b') });
+    var h = head(c, st, 1, -61); if (!cultHead(c, st, h, 'monk')) { circ(c, h.x, h.y - h.r * 0.75, h.r * 0.42, st.F('#e8dcc0')); }
+    arm(c, -2, -46 + st.bob, 0.2, 6, st.F(st.pal.skin));
+    var hand = arm(c, 7, -46 + st.bob, sw, 6, st.F(st.pal.skin));
+    var tx = hand.x + 4, ty = hand.y - 60;
+    seg(c, hand.x, hand.y, tx, ty, 3, st.F('#6b4a22'));
+    seg(c, tx, ty + 6, tx, ty - 12, 2.4, st.F('#e8c96a')); seg(c, tx - 5, ty - 4, tx + 5, ty - 4, 2.4, st.F('#e8c96a'));
+  };
+  DRAW.shield = function (c, st) {        // blue tunic, a round shield with a glowing dome around the line
+    legs(c, st); torso(c, st, { w: 26, col: st.F('#3f6fb0') });
+    var h = head(c, st, 1, -61); if (!cultHead(c, st, h, 'shield')) { steelHelm(c, st, h, '#9fd0ff'); enemyHat(c, st, h); }
+    var hand = arm(c, 7, -46 + st.bob, 0.05, 6.5, st.F(st.pal.skin));
+    var sx = hand.x + 6, sy = hand.y - 4;
+    circ(c, sx, sy, 17, st.F('#5f8fd0')); circ(c, sx, sy, 6, st.F('#e8f6ff'));
+    c.beginPath(); c.arc(sx, sy, 17, 0, TAU); c.lineWidth = 1.6; c.stroke(); c.lineWidth = Art.lw;
+    c.beginPath(); c.arc(0, -10, 40, Math.PI * 1.08, Math.PI * 1.92); c.strokeStyle = 'rgba(160,210,255,0.55)'; c.lineWidth = 3; c.stroke(); c.lineWidth = Art.lw; c.strokeStyle = Art.ink;
+  };
   var DRAW_END = 0;
   // Draw one unit. (sx, sy) is where its feet are on screen.
   Art.drawUnit = function (c, u, sx, sy, t) {
@@ -593,6 +612,8 @@
     c.save(); c.translate(x, y); c.scale(s, s); c.lineWidth = 2.2 / s * 1.0; c.strokeStyle = Art.ink; c.fillStyle = col || '#fff'; c.lineJoin = 'round'; c.lineCap = 'round';
     switch (type) {
       case 'spearman': c.beginPath(); c.moveTo(-9, 9); c.lineTo(8, -8); c.stroke(); c.beginPath(); c.moveTo(4, -12); c.lineTo(12, -12); c.lineTo(12, -4); c.closePath(); c.fill(); c.stroke(); break;
+      case 'monk': c.beginPath(); c.moveTo(0, -12); c.lineTo(0, 12); c.stroke(); c.beginPath(); c.moveTo(-7, -4); c.lineTo(7, -4); c.stroke(); c.beginPath(); c.arc(0, -4, 1.4, 0, TAU); c.fill(); break;
+      case 'shield': c.beginPath(); c.moveTo(-10, -9); c.lineTo(10, -9); c.lineTo(10, 1); c.quadraticCurveTo(10, 10, 0, 13); c.quadraticCurveTo(-10, 10, -10, 1); c.closePath(); c.fill(); c.stroke(); break;
       case 'archer': c.beginPath(); c.arc(-3, 0, 11, -1.2, 1.2); c.stroke(); c.beginPath(); c.moveTo(-3 + Math.cos(1.2) * 11, Math.sin(1.2) * 11); c.lineTo(-3 + Math.cos(1.2) * 11, -Math.sin(1.2) * 11); c.stroke(); c.beginPath(); c.moveTo(-8, 0); c.lineTo(11, 0); c.stroke(); c.beginPath(); c.moveTo(11, 0); c.lineTo(6, -4); c.lineTo(6, 4); c.closePath(); c.fill(); break;
       case 'fighter': c.beginPath(); c.moveTo(-9, -9); c.lineTo(9, -9); c.lineTo(9, 1); c.quadraticCurveTo(9, 9, 0, 12); c.quadraticCurveTo(-9, 9, -9, 1); c.closePath(); c.fill(); c.stroke(); c.beginPath(); c.moveTo(0, -9); c.lineTo(0, 11); c.stroke(); break;
       case 'assassin': c.beginPath(); c.moveTo(0, -12); c.lineTo(5, 0); c.lineTo(0, 12); c.lineTo(-5, 0); c.closePath(); c.fill(); c.stroke(); c.beginPath(); c.moveTo(-7, 6); c.lineTo(7, 6); c.stroke(); break;

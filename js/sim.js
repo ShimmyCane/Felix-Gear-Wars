@@ -26,8 +26,11 @@
     this.leaks = 0; this.kills = 0; this.earned = 0; this.spent = 0; this.undo = [];
     this.es = F.enemyScale(cfg.idx);
     var qk = cfg.quick ? 0.6 : 1;                // Quick game squeezes the whole hill
-    this.fun = { peak: (o.funPeak || F.FUN.peak) * 60 * qk, fade: (o.funFade || F.FUN.fade) * 60 * qk, ch: o.challenge || 1 };
-    this.gap = F.waveGap(cfg.idx) * (cfg.quick ? 0.8 : 1);
+    var pace = F.modePace(cfg.mode);            // medium and hard: more time between waves, a longer hill
+    this.pace = pace;
+    this.fun = { peak: (o.funPeak || F.FUN.peak) * 60 * qk * pace, fade: (o.funFade || F.FUN.fade) * 60 * qk * pace, ch: o.challenge || 1 };
+    this.gap = F.waveGap(cfg.idx) * (cfg.quick ? 0.8 : 1) * pace;
+    this.holesCleared = 0;
     if (!cfg.free) this.waveCount = Math.max(2, Math.floor(this.fun.fade / this.gap));
     this.bossWave = cfg.bossType ? Math.max(1, Math.round(this.fun.peak / this.gap)) : -1; this.bossDone = false;
     this.startT = 0; this.faded = false;
@@ -160,6 +163,37 @@
     var p = F.trayParts(type);
     return Math.round(F.gearValue(p.type, p.level) * (1 + (this.cfg.creep || 0) * n));
   };
+  // ---- removable pegs: each blocked peg costs more to clear than the one before -------------
+  P.holeCost = function () { return Math.round(F.HOLE_BASE * Math.pow(F.HOLE_GROWTH, this.holesCleared)); };
+  P.clearHole = function (c, r) {
+    if (!this.isHole(c, r)) return 'none';
+    var cost = this.holeCost();
+    if (this.coins < cost) return 'poor';
+    this.coins -= cost; this.spent += cost; this.holesCleared++;
+    delete this.holes[c + ',' + r];
+    var self = this;
+    this.undo.push(function () { self.holes[c + ',' + r] = true; self.holesCleared--; self.coins += cost; self.spent -= cost; });
+    this.emit({ k: 'hole', c: c, r: r });
+    return 'ok';
+  };
+  // Merge everything that can merge. Each pair folds into the gear nearer the heart; the nearest pairs go first.
+  P.autoMerge = function () {
+    var self = this, n = 0, guard = 0;
+    function hd(g) { return Math.abs(g.c - self.heart.c) + Math.abs(g.r - self.heart.r); }
+    for (;;) {
+      var best = null, i, j;
+      for (i = 0; i < this.gears.length; i++) for (j = i + 1; j < this.gears.length; j++) {
+        var a = this.gears[i], b = this.gears[j];
+        if (!this.canMerge(a, b)) continue;
+        var keep = hd(a) <= hd(b) ? a : b, other = keep === a ? b : a, d = hd(keep) * 100 + hd(other);
+        if (!best || d < best.d) best = { keep: keep, other: other, d: d };
+      }
+      if (!best || guard++ > 200) break;
+      this.moveGear(best.other, best.keep.c, best.keep.r); n++;
+    }
+    return n;
+  };
+
   P.sellValue = function (g) { return Math.floor(F.gearValue(g.type, g.level) * 0.5); };
 
   // Which gears get ticks from which side of the heart, and how many (multiplier gears multiply what passes through).
@@ -371,8 +405,34 @@
     return false;
   };
 
+  // Monk: turns the nearest enemy in reach (not a champion or a boss) for a while. The turned unit fights for Felix, then goes back.
+  P.monkWork = function (u, dt) {
+    u.convT = (u.convT || 0) - dt; if (u.convT > 0 || u.state === 'fall' || u.state === 'getup' || u.state === 'dying') return;
+    var D = F.UNITS[u.type].convert, best = null, bd = 1e9, i, o;
+    for (i = 0; i < this.units.length; i++) {
+      o = this.units[i];
+      if (o.side !== 'enemy' || o.dead || o.state === 'dying' || o.state === 'fall' || o.champ || o.boss) continue;
+      var dx = Math.abs(o.x - u.x); if (dx <= D.range && dx < bd) { bd = dx; best = o; }
+    }
+    if (!best) { u.convT = 0.4; return; }                  // nobody in reach yet: look again soon
+    best.side = 'ally'; best.dir = 1; best.converted = D.time; best.anim = 'walk';
+    u.convT = D.cool;
+    this.emit({ k: 'convert', x: best.x, y: best.y, unit: best.id });
+  };
+  // Shield caster: is there an allied shield caster close enough to a point to take the blow?
+  P.shieldAt = function (x, side) {
+    var R = F.UNITS.shield.aura;
+    for (var i = 0; i < this.units.length; i++) { var o = this.units[i]; if (o.side === side && o.type === 'shield' && !o.dead && o.state !== 'dying' && o.state !== 'fall' && Math.abs(o.x - x) <= R) return true; }
+    return false;
+  };
+  // Fighters of one kind alive on that side (the cap per kind).
+  P.typeCount = function (type, side) {
+    var n = 0; for (var i = 0; i < this.units.length; i++) { var o = this.units[i]; if (o.side === side && o.type === type && !o.dead && o.state !== 'dying') n++; } return n;
+  };
+
   P.updateUnit = function (u, dt) {
     u.t += dt; u.cd -= dt; if (u.flash > 0) u.flash -= dt;
+    if (u.converted > 0) { u.converted -= dt; if (u.converted <= 0) { u.converted = 0; u.side = 'enemy'; u.dir = -1; this.emit({ k: 'unconvert', x: u.x, y: u.y }); } }
     if (u.state === 'dying') { if (u.t > 0.75) u.dead = true; return; }
     if (u.state === 'fall') { if (u.t >= 0.55) { u.state = 'getup'; u.t = 0; this.emit({ k: 'land', x: u.x, y: u.y, side: u.side }); } return; }
     if (u.state === 'getup') { u.anim = 'getup'; if (u.t >= 0.45) { u.state = 'go'; u.t = 0; } return; }
@@ -382,6 +442,7 @@
     if (D.power === 'rally') this.rally(u, dt);
     if (D.power === 'heal') { u.healT -= dt; if (u.healT <= 0) { u.healT = 2.2; this.healAround(u); } }
     if (D.power === 'pierce') this.cartHit(u, dt);
+    if (D.convert && u.side === 'ally') this.monkWork(u, dt);
     if (u.anim === 'attack') {
       u.at += dt;
       var wind = Math.min(0.5, u.cdMax * 0.45) * 0.7;
@@ -500,6 +561,7 @@
     p.done = true;
     var L = this, foes2 = p.side === 'ally' ? 'enemy' : 'ally';
     if (p.splash) {
+      if (p.owner.type === 'catapult' && this.shieldAt(p.x1, foes2)) { this.emit({ k: 'shielded', x: p.x1, y: p.y1 }); return; }
       this.emit({ k: 'boom', x: p.x1, y: p.y1, r: p.splash, kind: p.kind });
       var hits = this.units.filter(function (o) { return o.side === foes2 && o.state !== 'dying' && o.state !== 'fall' && !o.dead && Math.abs(o.x - p.x1) <= p.splash; });
       hits.sort(function (a, b) { return Math.abs(a.x - p.x1) - Math.abs(b.x - p.x1); });
@@ -537,7 +599,7 @@
     var guard = 0;
     while (g.charge >= need && guard++ < 1) {
       if (F.UNITS[g.type]) {
-        if (allies >= F.MAX_UNITS) { g.charge = need; return; }
+        if (allies >= F.MAX_UNITS || this.typeCount(g.type, 'ally') >= F.UNIT_CAP(g.type)) { g.charge = need; return; }
         var x = this.dropX(g.c) + (this.rnd() - 0.5) * 24;
         var u = this.makeUnit('ally', g.type, g.level, x, false);
         u.gc = g.c; u.gr = g.r; allies++;
