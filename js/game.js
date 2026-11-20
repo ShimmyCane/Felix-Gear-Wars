@@ -20,7 +20,7 @@
   window.addEventListener('unhandledrejection', function (ev) { GW.err('Promise error', ev.reason); });
 
   // ---- settings and progress (device storage, always in try/catch) -----------------------------
-  var DEF = { funPeak: 3, funFade: 7, challenge: 1, bossRevs: 100, voice: 'auto', heartSpeed: 1, theme: 'manuscript', sfx: 0.8, music: 0.5, speed: 1, quick: 0, follow: 1, reading: 'auto', showErrors: 0 };
+  var DEF = { mode: 'medium', showFun: 0, funPeak: 3, funFade: 7, challenge: 1, bossRevs: 100, voice: 'auto', heartSpeed: 1, theme: 'manuscript', sfx: 0.8, music: 0.5, speed: 1, quick: 0, follow: 1, reading: 'auto', showErrors: 0 };
   var S = Object.assign({}, DEF);
   try { var raw = JSON.parse(localStorage.getItem('fgw.settings') || '{}'); Object.keys(DEF).forEach(function (k) { if (raw[k] !== undefined) S[k] = raw[k]; }); } catch (e) { /* storage blocked */ }
   function saveSettings() { try { localStorage.setItem('fgw.settings', JSON.stringify(S)); } catch (e) { /* ignore */ } }
@@ -59,9 +59,10 @@
   var sim = null, cfg = null, scroll = 0, manualUntil = 0, paused = false, screen = 'map', tAnim = 0, last = 0;
   var parts = [], bolts = [], falls = {}, banner = null, shake = 0, redFlash = 0, beat = 0, selSlot = -1, selGear = 0, info = null, toast = null, endTimer = 0, ended = false;
   var drag = null, hudBtns = [], pointers = {};
+  var pendingHole = null, lastDraw = 0;     // a peg waiting for its second tap to be cleared; last time the screen was drawn
   function makeSim(c) {
     cfg = c; sim = new F.Sim(c, { seed: (Math.random() * 1e9) | 0, heartSpeed: +S.heartSpeed || 1, specialty: Art.specialty(), funPeak: +S.funPeak || 3, funFade: +S.funFade || 7, challenge: +S.challenge || 1 });
-    sim.speed = +S.speed; scroll = 0; parts = []; bolts = []; falls = {}; banner = null; selSlot = -1; selGear = 0; info = null; ended = false; endTimer = 0; paused = false;
+    sim.speed = F.SPEEDS.indexOf(+S.speed) >= 0 ? +S.speed : 1; pendingHole = null; scroll = 0; parts = []; bolts = []; falls = {}; banner = null; selSlot = -1; selGear = 0; info = null; ended = false; endTimer = 0; paused = false;
     layout();
   }
 
@@ -87,6 +88,7 @@
     else if (b.icon === 'next') { c.beginPath(); c.moveTo(-14, -10); c.lineTo(0, 0); c.lineTo(-14, 10); c.closePath(); c.fill(); c.beginPath(); c.moveTo(0, -10); c.lineTo(14, 0); c.lineTo(0, 10); c.closePath(); c.fill(); }
     else if (b.icon === 'undo') { c.beginPath(); c.arc(0, 2, 10, Math.PI * 1.15, Math.PI * 2.05); c.stroke(); c.beginPath(); c.moveTo(-14, -3); c.lineTo(-9, -12); c.lineTo(-3, -4); c.closePath(); c.fill(); }
     else if (b.icon === 'home') { c.beginPath(); c.moveTo(-12, 0); c.lineTo(0, -12); c.lineTo(12, 0); c.stroke(); c.strokeRect(-8, 0, 16, 11); }
+    else if (b.icon === 'merge') { c.beginPath(); c.arc(-9, 0, 6, 0, TAU); c.stroke(); c.beginPath(); c.arc(7, 0, 6, 0, TAU); c.stroke(); c.beginPath(); c.moveTo(-1, -1); c.lineTo(3, 0); c.lineTo(-1, 1); c.stroke(); }
     else if (b.icon === 'speed') { c.font = '900 22px ' + SANS; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('×' + sim.speed, 0, 1); }
     c.restore();
     if (b.label) txt(c, b.label, b.x + b.w / 2 - 6, b.y + b.h / 2 + 1, 22, Art.ink, 'left', '900');
@@ -116,7 +118,9 @@
       switch (e.k) {
         
         case 'place': Au.play('place'); break;
-        case 'merge': Au.play('merge'); var gm = sim.gearById(e.id); if (gm) { p = gearPos(gm.c, gm.r); sparks(p[0], p[1], 22, '#fff2a0'); ring(p[0], p[1], 50); } break;
+        case 'merge': Au.play('merge'); var gm = sim.gearById(e.id);
+          if (gm) { p = gearPos(gm.c, gm.r); sparks(p[0], p[1], 34, '#fff2a0'); ring(p[0], p[1], 50); ring(p[0], p[1], 84, '#ffd24a'); puff(p[0], p[1], 12, '#fff7d0', 40, 20); floatText(p[0], p[1] - 36, 'Level ' + e.level + '!', '#ffe27a'); }
+          break;
         case 'pop': if (e.champ) { banner = { text: 'A champion!', t: 0, boss: false }; Au.play('horn', false); } p = gearPos(e.c, e.r); falls[e.unit] = { sx: p[0], sy: p[1] }; Au.play('pop', e.type); sparks(p[0], p[1] + 20, 8, '#fff7c8'); puff(p[0], p[1] + 28, 4, '#fff7e0', 20, 10); break;
         case 'land': puff(e.x - scroll, Art.groundY(L.bf) + 14 + e.y, 7, '#cdbf9e', 28, 10); Au.play('land'); break;
         case 'slash': sparks(e.x - scroll, Art.groundY(L.bf) - 30 + (e.y || 0), 6, e.side === 'ally' ? '#fff2a0' : '#ffb0a0'); Au.play('slash', e.type); break;
@@ -137,6 +141,8 @@
         case 'structhit': if (e.kind === 'fortress' || e.kind.indexOf('tower') === 0) { sparks(e.x - scroll, Art.groundY(L.bf) - 50, 4, '#ffd090'); } Au.play('base'); break;
         case 'structdown': if (e.kind !== 'fortress') { puff(e.x - scroll, Art.groundY(L.bf) - 30, 22, '#8a7a68', 90, 40); sparks(e.x - scroll, Art.groundY(L.bf) - 40, 16, '#ffb050'); shake = Math.max(shake, 8); Au.play('boom'); say(e.side === 'enemy' ? 'An enemy tower fell!' : 'Your tower fell. It will be rebuilt.'); } break;
         case 'structup': ring(e.x - scroll, Art.groundY(L.bf) - 40, 60, '#fff2a0'); sparks(e.x - scroll, Art.groundY(L.bf) - 40, 12, '#fff2a0'); Au.play('merge'); break;
+        case 'convert': p = [e.x - scroll, Art.groundY(L.bf) - 40]; ring(p[0], p[1], 46, '#c7f0a0'); floatText(p[0], p[1] - 40, 'Turned!', '#c7f0a0'); Au.play('merge'); break;
+        case 'shielded': p = [e.x - scroll, Art.groundY(L.bf) - 30]; ring(p[0], p[1], 40, '#9fd0ff'); sparks(p[0], p[1], 10, '#cfe8ff'); Au.play('land'); break;
         case 'basehit': Au.play('base'); sparks(sim.ebx - scroll + 60, Art.groundY(L.bf) - 40, 6, '#ffd090'); break;
         case 'basefall': shake = 14; Au.play('boom'); puff(sim.ebx - scroll + 80, Art.groundY(L.bf) - 50, 30, '#7a6a60', 160, 40); break;
         case 'end': ended = true; endTimer = 1.2; Au.mood('off'); Au.play(e.win ? 'win' : 'lose'); break;
@@ -158,7 +164,7 @@
     var army = sim.alliesAlive(); txt(c, 'Army ' + army + '/' + F.MAX_UNITS, 450, hy + 39, 16, army >= F.MAX_UNITS ? Art.C('#c0392b') : T.text, 'left', '700');
     var bx = W - 34 - 68;
     function add(id, icon, w, fill) { var b = { id: id, icon: icon, x: bx - (w - 64), y: hy + 4, w: w, h: 48, fill: fill }; bx -= w + 8; hudBtns.push(b); return b; }
-    add('home', 'home', 64); add('pause', paused ? 'play' : 'pause', 64); add('speed', 'speed', 64); add('undo', 'undo', 64);
+    add('merge', 'merge', 64); add('home', 'home', 64); add('pause', paused ? 'play' : 'pause', 64); add('speed', 'speed', 64); add('undo', 'undo', 64);
     if (sim.status === 'build') add('go', 'play', 124, Art.C('#8fd18a')).label = 'Start';
     else if (sim.status === 'running' && sim.waveIdx + 1 < sim.waveCount && sim.waveTimer > 2) add('next', 'next', 96, Art.C('#8fd18a'));
     hudBtns.forEach(function (b) { button(c, b); });
@@ -189,6 +195,7 @@
       if (sim.isHole(cc, r)) {
         c.beginPath(); c.arc(x, y, L.cs * 0.4, 0, TAU); c.fillStyle = 'rgba(30,20,10,0.55)'; c.fill(); c.lineWidth = 2; c.strokeStyle = Art.ink; c.stroke();
         c.beginPath(); c.moveTo(x - 12, y - 12); c.lineTo(x + 12, y + 12); c.moveTo(x + 12, y - 12); c.lineTo(x - 12, y + 12); c.lineWidth = 3; c.stroke();
+        if (pendingHole && pendingHole.c === cc && pendingHole.r === r) { c.strokeStyle = Art.C('#ffd24a'); c.lineWidth = 3; c.beginPath(); c.arc(x, y, L.cs * 0.5, 0, TAU); c.stroke(); coinIcon(c, x - 18, y - L.cs * 0.62, 9); txt(c, String(sim.holeCost()), x - 6, y - L.cs * 0.62 + 1, 18, Art.C('#ffe27a'), 'left', '900'); }
       } else if (!sim.isHeart(cc, r)) { c.beginPath(); c.arc(x, y, 4, 0, TAU); c.fillStyle = Art.C(T.gold); c.fill(); c.lineWidth = 1.5; c.strokeStyle = Art.ink; c.stroke(); }
     }
     // drop-target hints while dragging
@@ -221,12 +228,13 @@
       if (drag && drag.kind === 'card' && drag.slot === i && drag.moved) { c.globalAlpha = 0.4; }
       panel(c, r.x, r.y, r.w, r.h, sel ? Art.C(T.gold2) : Art.C(T.panel2), 14);
       if (type) {
-        var fake = { type: type, level: 1, charge: 0, need: F.ticksNeeded(type, 1), active: false, locked: false, pulse: 0 };
+        var tp = F.trayParts(type);
+        var fake = { type: tp.type, level: tp.level, charge: 0, need: F.ticksNeeded(tp.type, tp.level), active: false, locked: false, pulse: 0 };
         var gr = Math.min(r.w * 0.3, 34);
         c.save(); if (!can) c.globalAlpha *= 0.55;
         Art.drawGear(c, fake, r.x + r.w / 2, r.y + 14 + gr + 6, gr, tAnim * 0.6 * (i % 2 ? -1 : 1), { star: type === Art.specialty() });
         c.restore();
-        var nm = Art.unitName(type); txt(c, nm, r.x + r.w / 2, r.y + r.h - 44, 15, T.text, 'center', '800');
+        var nm = tp.type === 'mult' ? 'Multiplier ×' + F.MULTV[tp.level - 1] : Art.unitName(type); txt(c, nm, r.x + r.w / 2, r.y + r.h - 44, 15, T.text, 'center', '800');
         coinIcon(c, r.x + r.w / 2 - 20, r.y + r.h - 20, 10); txt(c, String(cost), r.x + r.w / 2 - 6, r.y + r.h - 19, 20, can ? T.text : Art.C('#c0392b'), 'left', '900');
       }
       c.globalAlpha = 1;
@@ -236,7 +244,7 @@
     var rb = { id: 'refresh', x: t.x + 12, y: by + 10, w: 120, h: 52 };
     panel(c, rb.x, rb.y + (rb.down ? 3 : 0), rb.w, rb.h, Art.C(T.btn), 14);
     c.save(); c.translate(rb.x + 30, rb.y + 26); c.strokeStyle = Art.ink; c.lineWidth = 3.2; c.lineCap = 'round'; c.beginPath(); c.arc(0, 0, 10, 0.3, Math.PI * 1.6); c.stroke(); c.beginPath(); c.moveTo(8, -12); c.lineTo(13, -3); c.lineTo(3, -3); c.closePath(); c.fillStyle = Art.ink; c.fill(); c.restore();
-    coinIcon(c, rb.x + 70, rb.y + 26, 9); txt(c, '10', rb.x + 84, rb.y + 27, 20, T.text, 'left', '900');
+    coinIcon(c, rb.x + 70, rb.y + 26, 9); txt(c, String(sim.refreshCost()), rb.x + 84, rb.y + 27, 20, T.text, 'left', '900');
     hudBtns.push(rb);
     var ix = t.x + 144, iw = t.w - 156;
     if (info && info.until > tAnim) { txt(c, info.a, ix, by + 16, 17, T.text, 'left', '800'); txt(c, info.b, ix, by + 40, 14, T.text, 'left', '600'); txt(c, info.c, ix, by + 62, 14, T.text, 'left', '600'); }
@@ -355,10 +363,10 @@
     var sh = shake > 0.3 ? [(Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake] : [0, 0]; c.translate(sh[0], sh[1]);
     if (sim) {
       hudBtns = [];
-      drawBattle(c); drawBoard(c); drawTray(c); drawHUD(c); drawMini(c); drawFun(c);
+      drawBattle(c); drawBoard(c); drawTray(c); drawHUD(c); drawMini(c); if (+S.showFun) drawFun(c);
       if (drag && drag.moved) {
         if (drag.kind === 'gear') { var g = drag.gear; g.need = F.ticksNeeded(g.type, g.level); Art.drawGear(c, g, drag.x, drag.y - 12, L.cs / 2 * 1.08, gearAngle(g), { glow: true }); }
-        else if (drag.kind === 'card') { var ty = sim.tray[drag.slot]; if (ty) Art.drawGear(c, { type: ty, level: 1, charge: 0, need: F.ticksNeeded(ty, 1), active: false, locked: false, pulse: 0 }, drag.x, drag.y - 12, L.cs / 2 * 1.08, tAnim, { glow: true }); }
+        else if (drag.kind === 'card') { var ty = sim.tray[drag.slot]; if (ty) { var tp = F.trayParts(ty); Art.drawGear(c, { type: tp.type, level: tp.level, charge: 0, need: F.ticksNeeded(tp.type, tp.level), active: false, locked: false, pulse: 0 }, drag.x, drag.y - 12, L.cs / 2 * 1.08, tAnim, { glow: true }); } }
       }
       if (banner) { var bt = banner.t, al = bt < 0.3 ? bt / 0.3 : bt > 2 ? Math.max(0, 1 - (bt - 2) / 0.6) : 1; c.save(); c.globalAlpha = al; var yy = L.bf.y + 56 - (1 - Math.min(1, bt / 0.3)) * 20; panel(c, W / 2 - 190, yy - 34, 380, 68, banner.boss ? Art.C('#e86a5a') : Art.C(T.panel), 20); txt(c, banner.text, W / 2, yy, 34, banner.boss ? '#fff' : T.text, 'center', '900'); c.restore(); }
       if (redFlash > 0) { var gr = c.createLinearGradient(0, 0, 220, 0); gr.addColorStop(0, 'rgba(220,40,40,' + (redFlash * 0.5).toFixed(2) + ')'); gr.addColorStop(1, 'rgba(220,40,40,0)'); c.fillStyle = gr; c.fillRect(0, L.bf.y, 260, L.bf.h); }
@@ -379,7 +387,9 @@
         handleEvents(); updateFx(dt); updateCamera(dt);
         if (ended && screen === 'play') { endTimer -= dt; if (endTimer <= 0) showResult(); }
       }
-      drawAll();
+      // at 4x and 8x the screen is drawn one frame in every 0.1 s (the game itself still runs every frame)
+      var skip = sim && screen === 'play' && sim.speed >= F.RENDER_SKIP_SPEED && !drag && ts - lastDraw < 100;
+      if (!skip) { drawAll(); lastDraw = ts; }
     } catch (e) { GW.err('Draw error', e); }
     requestAnimationFrame(frame);
   }
@@ -439,13 +449,15 @@
     if (d.kind === 'btn') { d.btn.down = false; if (hit(d.btn, x, y)) onButton(d.btn.id); return; }
     var cell = cellAt(x, y), tray = L.tray, inTray = x >= tray.x && x <= tray.x + tray.w && y >= tray.y && y <= tray.y + tray.h;
     if (d.kind === 'card') {
-      if (!d.moved) { selSlot = selSlot === d.slot ? -1 : d.slot; selGear = 0; Au.play('tap'); if (selSlot >= 0) setInfoFor(sim.tray[selSlot], 1, 'Tap a free peg to place it.'); return; }
+      if (!d.moved) { selSlot = selSlot === d.slot ? -1 : d.slot; selGear = 0; Au.play('tap'); if (selSlot >= 0) { var sp = F.trayParts(sim.tray[selSlot]); setInfoFor(sp.type, sp.level, 'Tap a free peg to place it.'); } return; }
       if (cell) buyAt(d.slot, cell[0], cell[1]);
     } else if (d.kind === 'gear') {
       if (!d.moved) { selGear = selGear === d.gear.id ? 0 : d.gear.id; selSlot = -1; Au.play('tap'); if (selGear) setInfoFor(d.gear.type, d.gear.level, d.gear.type === 'mult' ? 'Locked gears can only pass ticks.' : (d.gear.locked ? 'A sleeping gear: link a chain to wake it.' : 'ticks: ' + Math.floor(d.gear.charge) + ' / ' + F.ticksNeeded(d.gear.type, d.gear.level) + ' · per turn ' + d.gear.rate)); return; }
       if (inTray) { if (sim.sellGear(d.gear)) { Au.play('sell'); say('Sold'); } else say('This gear is locked'); }
       else if (cell) { var res = sim.moveGear(d.gear, cell[0], cell[1]); if (res === 'no' && sim.gearAt(cell[0], cell[1]) && sim.gearAt(cell[0], cell[1]).locked) say('Locked'); if (res === 'moved' || res === 'swapped') Au.play('place'); }
     } else if (d.kind === 'cell') {
+      if (!d.moved && sim.isHole(d.cell[0], d.cell[1])) { holeTap(d.cell[0], d.cell[1]); return; }
+      pendingHole = null;
       if (!d.moved && selSlot >= 0) buyAt(selSlot, d.cell[0], d.cell[1]);
       else if (!d.moved) { selGear = 0; }
     } else if (d.kind === 'pan') {
@@ -454,6 +466,14 @@
   }
   cv.addEventListener('pointerup', endDrag);
   cv.addEventListener('pointercancel', function () { if (drag && drag.btn) drag.btn.down = false; drag = null; });
+  // A blocked peg: the first tap shows its price, the second tap pays and clears it.
+  function holeTap(c, r) {
+    if (pendingHole && pendingHole.c === c && pendingHole.r === r) {
+      var res = sim.clearHole(c, r), p = gearPos(c, r);
+      if (res === 'ok') { pendingHole = null; Au.play('merge'); sparks(p[0], p[1], 10, '#fff2a0'); say('Peg cleared. Next one costs ' + sim.holeCost()); }
+      else { Au.play('nope'); say('Not enough coins'); }
+    } else { pendingHole = { c: c, r: r }; Au.play('tap'); say('Clear this peg for ' + sim.holeCost() + ' coins? Tap it again to pay'); }
+  }
   function buyAt(slot, c, r) {
     var res = sim.buy(slot, c, r);
     if (res === 'ok') { selSlot = -1; var g = sim.gearAt(c, r); var p = gearPos(c, r); puff(p[0], p[1] + 20, 5, '#fff', 30, 10); }
@@ -465,7 +485,8 @@
     if (id === 'go') { sim.start(); Au.mood('calm', cfg.ch); if (sim.status === 'running') Au.mood('battle', cfg.ch); }
     else if (id === 'next') sim.callNext();
     else if (id === 'pause') { paused = !paused; }
-    else if (id === 'speed') { sim.speed = sim.speed >= 3 ? 1 : sim.speed + 1; S.speed = sim.speed; saveSettings(); syncSettings(); }
+    else if (id === 'speed') { var si = F.SPEEDS.indexOf(sim.speed); sim.speed = F.SPEEDS[(si + 1) % F.SPEEDS.length]; S.speed = sim.speed; saveSettings(); syncSettings(); say('Speed ×' + sim.speed); }
+    else if (id === 'merge') { var nm = sim.autoMerge(); if (nm) { Au.play('merge'); say('Merged ' + nm + (nm === 1 ? ' pair' : ' pairs')); } else say('Nothing to merge'); }
     else if (id === 'undo') { if (sim.undoLast()) Au.play('undo'); else say('Nothing to undo'); }
     else if (id === 'refresh') { if (!sim.refreshTray()) { Au.play('nope'); say('Not enough coins'); } else Au.play('tap'); }
     else if (id === 'home') { leaveLevel(); showMap(); }
@@ -503,7 +524,7 @@
         var b = document.createElement('button'); b.type = 'button'; b.className = 'lvBtn'; var id = 'c' + C.n + 'l' + lv, st = P.stars[id] || 0, ok = unlocked(C.n, lv);
         b.disabled = !ok; b.setAttribute('aria-label', 'Chapter ' + C.n + ' level ' + lv);
         b.innerHTML = '<span class="lvNum">' + (lv === 3 ? '♛' : lv) + '</span><span class="lvStars">' + (ok ? '★'.repeat(st) + '☆'.repeat(3 - st) : '🔒') + '</span>';
-        b.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.levelConfig(C.n, lv, { quick: +S.quick })); });
+        b.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.levelConfig(C.n, lv, { quick: +S.quick, mode: S.mode })); });
         row.appendChild(b);
       })(lv);
       card.appendChild(row); box.appendChild(card);
@@ -536,7 +557,7 @@
   function startLevel() {
     Au.stopSay();
     var c = cfg; var bonus = Math.min(60, (P.fails[c.id] || 0) * 20);
-    var fresh = c.free ? F.freeConfig({ quick: +S.quick }) : F.levelConfig(c.ch, c.lv, { quick: +S.quick }); fresh.coins += bonus; fresh.story = c.story;
+    var fresh = c.free ? F.freeConfig({ quick: +S.quick, mode: S.mode }) : F.levelConfig(c.ch, c.lv, { quick: +S.quick, mode: S.mode }); fresh.coins += bonus; fresh.story = c.story;
     makeSim(fresh); show('play'); Au.init(); Au.mood('calm', fresh.ch);
     if (bonus) say('A few extra coins this time: +' + bonus);
     if (window.AppNotes) AppNotes.setContext({ item: fresh.id, label: fresh.title + ' ' + levelLabel() });
@@ -582,11 +603,12 @@
   function bindSettings() {
     document.querySelectorAll('.seg button').forEach(function (b) {
       b.addEventListener('click', function () {
-        var k = b.parentNode.getAttribute('data-key'), v = b.getAttribute('data-v'); S[k] = (k === 'theme' || k === 'reading' || k === 'voice') ? v : +v; saveSettings(); syncSettings();
+        var k = b.parentNode.getAttribute('data-key'), v = b.getAttribute('data-v'); S[k] = (k === 'theme' || k === 'reading' || k === 'voice' || k === 'mode') ? v : +v; saveSettings(); syncSettings();
         if (k === 'speed' && sim) sim.speed = +S.speed; Au.init(); Au.play('tap');
         if (k === 'theme') { if (screen === 'map') showMap(); }
         if (k === 'voice' && S.voice === 'off') Au.stopSay();
         if (k === 'quick') say(+S.quick ? 'Quick game: shorter waves' : 'Normal waves');
+        if (k === 'mode') say('Difficulty: ' + F.MODES[F.modeOf(S.mode)].name);
       });
     });
     function applyFun() {
@@ -594,7 +616,7 @@
       $('funFade').value = S.funFade; $('funPeakVal').textContent = S.funPeak; $('funFadeVal').textContent = S.funFade;
       var ch = +S.challenge; $('challengeVal').textContent = ch < 0.9 ? 'softer (' + ch.toFixed(2) + ')' : ch > 1.1 ? 'harder (' + ch.toFixed(2) + ')' : 'normal';
       saveSettings(); drawFunPlot();
-      if (sim) { var qk = cfg.quick ? 0.6 : 1; sim.fun.peak = S.funPeak * 60 * qk; sim.fun.fade = S.funFade * 60 * qk; sim.fun.ch = ch; if (!cfg.free) sim.waveCount = Math.max(sim.waveIdx + 1, Math.floor(sim.fun.fade / sim.gap)); }
+      if (sim) { var qk = cfg.quick ? 0.6 : 1; sim.fun.peak = S.funPeak * 60 * qk * sim.pace; sim.fun.fade = S.funFade * 60 * qk * sim.pace; sim.fun.ch = ch; if (!cfg.free) sim.waveCount = Math.max(sim.waveIdx + 1, Math.floor(sim.fun.fade / sim.gap)); }
     }
     ['funPeak', 'funFade', 'challenge'].forEach(function (k) { $(k).addEventListener('input', function () { S[k] = +this.value; applyFun(); }); });
     GW.applyFun = applyFun;
@@ -608,7 +630,7 @@
     document.querySelectorAll('.pHead').forEach(function (h) {
       h.addEventListener('click', function () { var sec = h.parentNode, open = sec.getAttribute('data-collapsed') === 'true'; sec.setAttribute('data-collapsed', String(!open)); h.setAttribute('aria-expanded', String(open)); h.querySelector('.mark').textContent = open ? '▾' : '▸'; });
     });
-    $('btnFree').addEventListener('click', function () { $('drawer').hidden = true; Au.init(); showStory(F.freeConfig({ quick: +S.quick })); });
+    $('btnFree').addEventListener('click', function () { $('drawer').hidden = true; Au.init(); showStory(F.freeConfig({ quick: +S.quick, mode: S.mode })); });
     $('btnMap').addEventListener('click', function () { $('drawer').hidden = true; leaveLevel(); showMap(); });
     $('btnCheat').addEventListener('click', function () { if (sim && screen === 'play') { sim.coins += 25; Au.play('coin'); } else say('Start a level first'); });
     $('btnReset').addEventListener('click', function () {
@@ -618,10 +640,10 @@
     $('storyPlay').addEventListener('click', function () { Au.init(); startLevel(); });
     $('storyBack').addEventListener('click', function () { Au.stopSay(); showMap(); });
     $('storyListen').addEventListener('click', function () { if (Au.speaking()) { Au.stopSay(); listenState(false); } else playNarration(); });
-    $('resNext').addEventListener('click', function () { var i = cfg.idx + 1, ch = Math.floor(i / 3) + 1, lv = i % 3 + 1; showStory(F.levelConfig(ch, lv, { quick: +S.quick })); });
-    $('resRetry').addEventListener('click', function () { showStory(cfg.free ? F.freeConfig({ quick: +S.quick }) : F.levelConfig(cfg.ch, cfg.lv, { quick: +S.quick })); });
+    $('resNext').addEventListener('click', function () { var i = cfg.idx + 1, ch = Math.floor(i / 3) + 1, lv = i % 3 + 1; showStory(F.levelConfig(ch, lv, { quick: +S.quick, mode: S.mode })); });
+    $('resRetry').addEventListener('click', function () { showStory(cfg.free ? F.freeConfig({ quick: +S.quick, mode: S.mode }) : F.levelConfig(cfg.ch, cfg.lv, { quick: +S.quick, mode: S.mode })); });
     $('resMap').addEventListener('click', function () { showMap(); });
-    $('mapFree').addEventListener('click', function () { Au.init(); showStory(F.freeConfig({ quick: +S.quick })); });
+    $('mapFree').addEventListener('click', function () { Au.init(); showStory(F.freeConfig({ quick: +S.quick, mode: S.mode })); });
     $('verInfo').textContent = 'Felix Gear Wars ' + F.version;
   }
   GW.say = say;

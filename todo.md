@@ -1,6 +1,8 @@
 # Felix Gear Wars — todo
 
 ## Next (after Jimmy plays it)
+- [ ] Decide on the open review notes (Supabase `fgw_notes`, status open): a 15-minute play cooldown with a take-a-break boss and card (c1l2 note, not built); fireball rain from the mages or Moz as a counter to the catapult (free-for-all note, not built); what "the fun curve should reset on a new play" means in practice (the curve already restarts each level).
+- [ ] Play-test the review changes: tray multipliers (1X from chapter 3, 2X from chapter 4, 4X from chapter 6, priced 15/40/110/300), 8x chain cap, five-target splash, castle stones from chapter 2, enemy gears training up the hill, refresh at 5 + 5 per five gears, fun curve hidden behind ⚙️ (Fun curve).
 - [ ] Answer `convo v0.6.md` (fun curve, prices, champions, castle strength).
 - [ ] Answer `convo v0.5.md` (which fighter is each culture's star, a bigger look for the star, the pace of a spearman gear, culture enemies).
 - [ ] Elephant for the Indian tank, chariot for the Egyptian knight, horses off for the Aztecs.

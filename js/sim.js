@@ -26,14 +26,17 @@
     this.leaks = 0; this.kills = 0; this.earned = 0; this.spent = 0; this.undo = [];
     this.es = F.enemyScale(cfg.idx);
     var qk = cfg.quick ? 0.6 : 1;                // Quick game squeezes the whole hill
-    this.fun = { peak: (o.funPeak || F.FUN.peak) * 60 * qk, fade: (o.funFade || F.FUN.fade) * 60 * qk, ch: o.challenge || 1 };
-    this.gap = F.waveGap(cfg.idx) * (cfg.quick ? 0.8 : 1);
+    var pace = F.modePace(cfg.mode);            // medium and hard: more time between waves, a longer hill
+    this.pace = pace;
+    this.fun = { peak: (o.funPeak || F.FUN.peak) * 60 * qk * pace, fade: (o.funFade || F.FUN.fade) * 60 * qk * pace, ch: o.challenge || 1 };
+    this.gap = F.waveGap(cfg.idx) * (cfg.quick ? 0.8 : 1) * pace;
+    this.holesCleared = 0;
     if (!cfg.free) this.waveCount = Math.max(2, Math.floor(this.fun.fade / this.gap));
     this.bossWave = cfg.bossType ? Math.max(1, Math.round(this.fun.peak / this.gap)) : -1; this.bossDone = false;
     this.startT = 0; this.faded = false;
     this.specialty = o.specialty || null;      // the culture's starred fighter (+25%); the screen sets it
     this.pool = cfg.pool.concat(cfg.specials || []);
-    this.pool.push('mult');
+    F.multTiers(cfg.free ? 0 : cfg.ch).forEach(function (v) { this.pool.push('mult@' + v); }, this);
     this.tray = [null, null, null];
     this.sideGain = [{}, {}, {}, {}];
     this.rollTray();
@@ -61,7 +64,9 @@
         weapons: weapons.map(function (w) { return { kind: w.kind, range: w.range * rs, min: (w.min || 0) * rs, cd: w.cd, t: w.cd * (0.4 + self.rnd() * 0.6), dmg: w.dps * w.cd * k, splash: w.splash || 0 }; }) }, extra || {});
       self.structs.push(s); return s;
     }
-    var castleW = [{ kind: 'arrow', range: 440, cd: 0.5, dps: 0.6 * D }, { kind: 'stone', range: 720, min: 180, cd: 3.5, dps: 0.4 * D / 1.5, splash: 70 }];
+    // The first levels have only archers in the castle (about two). Stones come from level four (chapter 2, level 1).
+    var castleW = idx >= 3 ? [{ kind: 'arrow', range: 440, cd: 0.5, dps: 0.6 * D }, { kind: 'stone', range: 720, min: 180, cd: 3.5, dps: 0.4 * D / 1.5, splash: 70 }]
+      : [{ kind: 'arrow', range: 440, cd: 0.5, dps: 0.3 * D }];
     this.castle = add('ally', 'castle', 90, 1e9, castleW, { targetable: false, invuln: true });
     this.fort = add('enemy', 'fortress', this.ebx + 60, cfg.baseHp, castleW, { invuln: !!cfg.free });
     if (cfg.towers) {
@@ -149,20 +154,53 @@
     this.gears.splice(this.gears.indexOf(g), 1); delete this.grid[g.c + ',' + g.r];
   };
   P.canMerge = function (a, b) {
-    return a && b && a !== b && a.type === b.type && a.level === b.level && a.level < F.MAXLEVEL && !a.locked && !b.locked;
+    var max = a.type === 'mult' ? F.MULT_MAXLEVEL : F.MAXLEVEL;
+    return a && b && a !== b && a.type === b.type && a.level === b.level && a.level < max && !a.locked && !b.locked;
   };
   // Every gear you own makes the next one dearer (a level starts with a fixed purse and the price creeps up), so the number of gears
   // you can afford by the end follows the size of the enemy's last wave. Merging and selling bring the price down again.
   P.priceOf = function (type) {
     var n = 0; for (var i = 0; i < this.gears.length; i++) if (!this.gears[i].locked) n++;
-    return Math.round(F.gearCost(type) * (1 + (this.cfg.creep || 0) * n));
+    var p = F.trayParts(type);
+    return Math.round(F.gearValue(p.type, p.level) * (1 + (this.cfg.creep || 0) * n));
   };
-  P.sellValue = function (g) { return Math.floor(F.gearCost(g.type) * Math.pow(2, g.level - 1) * 0.5); };
+  // ---- removable pegs: each blocked peg costs more to clear than the one before -------------
+  P.holeCost = function () { return Math.round(F.HOLE_BASE * Math.pow(F.HOLE_GROWTH, this.holesCleared)); };
+  P.clearHole = function (c, r) {
+    if (!this.isHole(c, r)) return 'none';
+    var cost = this.holeCost();
+    if (this.coins < cost) return 'poor';
+    this.coins -= cost; this.spent += cost; this.holesCleared++;
+    delete this.holes[c + ',' + r];
+    var self = this;
+    this.undo.push(function () { self.holes[c + ',' + r] = true; self.holesCleared--; self.coins += cost; self.spent -= cost; });
+    this.emit({ k: 'hole', c: c, r: r });
+    return 'ok';
+  };
+  // Merge everything that can merge. Each pair folds into the gear nearer the heart; the nearest pairs go first.
+  P.autoMerge = function () {
+    var self = this, n = 0, guard = 0;
+    function hd(g) { return Math.abs(g.c - self.heart.c) + Math.abs(g.r - self.heart.r); }
+    for (;;) {
+      var best = null, i, j;
+      for (i = 0; i < this.gears.length; i++) for (j = i + 1; j < this.gears.length; j++) {
+        var a = this.gears[i], b = this.gears[j];
+        if (!this.canMerge(a, b)) continue;
+        var keep = hd(a) <= hd(b) ? a : b, other = keep === a ? b : a, d = hd(keep) * 100 + hd(other);
+        if (!best || d < best.d) best = { keep: keep, other: other, d: d };
+      }
+      if (!best || guard++ > 200) break;
+      this.moveGear(best.other, best.keep.c, best.keep.r); n++;
+    }
+    return n;
+  };
+
+  P.sellValue = function (g) { return Math.floor(F.gearValue(g.type, g.level) * 0.5); };
 
   // Which gears get ticks from which side of the heart, and how many (multiplier gears multiply what passes through).
   P.recompute = function () {
     var self = this;
-    this.gears.forEach(function (g) { g.rate = 0; g.active = false; });
+    this.gears.forEach(function (g) { g.rate = 0; g.gmax = 0; g.active = false; });
     for (var s = 0; s < 4; s++) {
       var gain = {}; this.sideGain[s] = gain;
       var first = this.gearAt(this.heart.c + DIRS[s][0], this.heart.r + DIRS[s][1]);
@@ -171,7 +209,7 @@
       var queue = [first];
       while (queue.length) {
         var g = queue.shift();
-        var out = gain[g.id] * (g.type === 'mult' ? F.MULTV[g.level - 1] : 1);
+        var out = Math.min(F.MULTCAP, gain[g.id] * (g.type === 'mult' ? F.MULTV[g.level - 1] : 1));
         for (var d = 0; d < 4; d++) {
           var nc = g.c + DIRS[d][0], nr = g.r + DIRS[d][1];
           if (self.isHeart(nc, nr)) continue;
@@ -179,13 +217,13 @@
           if (h && (gain[h.id] || 0) < out) { gain[h.id] = out; queue.push(h); }
         }
       }
-      for (var id in gain) { var gg = this.gearById(+id); gg.rate += gain[id]; gg.active = true; }
+      for (var id in gain) { var gg = this.gearById(+id); gg.rate += gain[id]; gg.gmax = Math.max(gg.gmax, gain[id]); gg.active = true; }
     }
   };
 
   // ---- the tray and the shop ---------------------------------------------------------------
   P.rollOne = function () {
-    var pool = this.pool, w = pool.map(function (t) { return t === 'mult' ? 0.7 : t === 'boss' ? 0.35 : F.UNITS[t] ? 1 : 0.8; });
+    var pool = this.pool, w = pool.map(function (t) { return F.trayParts(t).type === 'mult' ? 0.7 : t === 'boss' ? 0.35 : F.UNITS[t] ? 1 : 0.8; });
     var tot = w.reduce(function (a, b) { return a + b; }, 0), x = this.rnd() * tot;
     for (var i = 0; i < pool.length; i++) { x -= w[i]; if (x <= 0) return pool[i]; }
     return pool[0];
@@ -195,8 +233,9 @@
     // always offer at least one fighter so a tray is never all specials
     if (!this.tray.some(function (t) { return F.UNITS[t]; })) this.tray[0] = this.cfg.pool[this.cfg.pool.length - 1];
   };
+  P.refreshCost = function () { var n = 0; for (var i = 0; i < this.gears.length; i++) if (!this.gears[i].locked) n++; return F.refreshCost(n); };
   P.refreshTray = function () {
-    var cost = 10; if (this.coins < cost) return false;
+    var cost = this.refreshCost(); if (this.coins < cost) return false;
     var old = this.tray.slice(); this.coins -= cost; this.spent += cost; this.rollTray();
     var self = this; this.undo.push(function () { self.tray = old; self.coins += cost; self.spent -= cost; });
     return true;
@@ -208,7 +247,7 @@
     var cost = this.priceOf(type);
     if (this.coins < cost) return 'poor';
     this.coins -= cost; this.spent += cost;
-    var g = this.addGear(type, 1, c, r, false);
+    var p = F.trayParts(type), g = this.addGear(p.type, p.level, c, r, false);
     var prev = type, self = this;
     this.tray[slot] = this.rollOne();
     this.recompute();
@@ -278,8 +317,8 @@
   // peak, keep it exciting but not unfair, and ease off as the level fades). Free-for-all just keeps growing.
   P.makeWave = function (k) {
     var cfg = this.cfg, t = Math.max(0, this.t - this.startT), tm = t / 60, c, ratio;
-    if (cfg.free) { c = Math.min(1, 0.4 + 0.08 * k); ratio = (0.6 + 0.09 * k) * this.fun.ch; }
-    else { c = F.funCurve(tm, this.fun.peak / 60, this.fun.fade / 60); ratio = (F.TUNE.rLow + (F.TUNE.rPeak - F.TUNE.rLow) * c) * (1 + F.TUNE.rIdx * Math.min(1, cfg.idx / 23)) * (cfg.len || 1) * this.fun.ch; }
+    if (cfg.free) { c = Math.min(1, 0.4 + 0.08 * k); ratio = (0.6 + 0.09 * k) * this.fun.ch * F.modePress(cfg.mode, cfg.idx); }
+    else { c = F.funCurve(tm, this.fun.peak / 60, this.fun.fade / 60); ratio = (F.TUNE.rLow + (F.TUNE.rPeak - F.TUNE.rLow) * c) * (1 + F.TUNE.rIdx * Math.min(1, cfg.idx / 23)) * (cfg.len || 1) * this.fun.ch * F.modePress(cfg.mode, cfg.idx); }
     var es = this.es, scale = Math.sqrt(es.hp * es.atk), pool = cfg.pool, i;
     var E = this.playerPower(Math.min(30, this.gap)) * ratio;
     var floor = F.unitPower(pool[0]) * scale * (k === 0 ? 2 : 1.5);
@@ -289,8 +328,9 @@
     E = Math.max(floor, E);
     var types = pool.map(function (tp, n) { return { t: tp, w: 1 + n * 0.35 + (n === pool.length - 1 ? 1.2 : 0) }; });
     var list = [], got = 0, guard = 0;
+    var lv = F.enemyLevel(c, cfg.idx);           // the Horde trains: its gears get stronger along the fun curve
     while (got < E && list.length < 26 && guard++ < 80) {
-      var tp = F.weightedPick(this.rnd, types); list.push({ type: tp, boss: false }); got += F.unitPower(tp) * scale;
+      var tp = F.weightedPick(this.rnd, types); list.push({ type: tp, boss: false, level: lv }); got += F.unitPower(tp) * scale * F.SM[lv - 1];
     }
     var at = 0; list.forEach(function (s2) { s2.at = at; at += 0.8 + this.rnd() * 0.9; }, this);
     if (boss) list.push({ type: cfg.free ? pool[pool.length - 1 - (k % 3)] : cfg.bossType, boss: true, at: at + 3 });
@@ -300,7 +340,7 @@
     this.waveIdx++;
     var w = this.makeWave(this.waveIdx), self = this;
     this.lastWaveInfo = w;
-    w.spawn.forEach(function (s) { self.queue.push({ at: self.t + s.at, type: s.type, boss: s.boss }); });
+    w.spawn.forEach(function (s) { self.queue.push({ at: self.t + s.at, type: s.type, boss: s.boss, level: s.level || 1 }); });
     this.emit({ k: 'wave', n: this.waveIdx + 1, total: this.waveCount, boss: w.spawn.some(function (s) { return s.boss; }), size: w.spawn.length });
     var nextAt = (this.waveIdx + 1) * this.gap;
     this.waveTimer = (this.waveIdx + 1 < this.waveCount && (this.cfg.free || nextAt < this.fun.fade)) ? this.gap : Infinity;
@@ -309,13 +349,13 @@
   // ---- units -------------------------------------------------------------------------------
   P.makeUnit = function (side, type, level, x, boss) {
     var d = F.UNITS[type], sm = F.SM[level - 1], es = side === 'enemy' ? this.es : { hp: 1, atk: 1, def: 1 };
-    var hp = d.hp * sm * es.hp, atk = d.atk * sm * es.atk, def = d.def * (1 + 0.4 * (level - 1)) * es.def, spd = d.speed, sc = 1 + (level - 1) * 0.1;
+    var hp = d.hp * sm * es.hp, atk = d.atk * sm * es.atk, def = d.def * (1 + 0.4 * (level - 1)) * es.def, spd = d.speed, sc = level >= F.BIG_LEVEL ? 2.8 : 1 + (level - 1) * 0.1;
     if (d.champ) sc = d.scale * (1 + (level - 1) * 0.08);
     var special = side === 'ally' && this.specialty === type;
     if (special) { hp *= F.SPECIALTY_BONUS; atk *= F.SPECIALTY_BONUS; }
     if (boss) { hp *= 9; atk *= 2.2; def *= 1.6; spd *= 0.85; sc = 2.8; }
     var u = { id: this.nid++, side: side, type: type, level: level, boss: !!boss, x: x, y: this.rnd() * 52, hp: hp, max: hp, atk: atk, def: def,
-      range: d.range * (boss ? 1.25 : 1), minRange: d.minRange || 0, speed: spd, cdMax: d.cd, cd: 0.3 + this.rnd() * 0.4, state: 'fall', t: 0,
+      range: d.range * (boss || level >= F.BIG_LEVEL ? 1.25 : 1), big: level >= F.BIG_LEVEL, minRange: d.minRange || 0, speed: spd, cdMax: d.cd, cd: 0.3 + this.rnd() * 0.4, state: 'fall', t: 0,
       anim: 'fall', at: 0, hitDone: false, special: special, champ: !!d.champ, fly: !!d.fly, slow: 0, healT: 1.2, tgt: 0, dir: side === 'ally' ? 1 : -1, scale: sc, charged: false, flash: 0, phase: this.rnd() * 6.28, dead: false, vx: 0 };
     this.units.push(u); return u;
   };
@@ -366,8 +406,37 @@
     return false;
   };
 
+  // Monk: turns the nearest enemy in reach (not a champion or a boss) for a while. The turned unit fights for Felix, then goes back.
+  P.monkWork = function (u, dt) {
+    u.convT = (u.convT || 0) - dt; if (u.convT > 0 || u.state === 'fall' || u.state === 'getup' || u.state === 'dying') return;
+    var D = F.UNITS[u.type].convert, cands = [], i, o;
+    for (i = 0; i < this.units.length; i++) {
+      o = this.units[i];
+      if (o.side !== 'enemy' || o.dead || o.state === 'dying' || o.state === 'fall' || o.champ || o.boss) continue;
+      var dx = Math.abs(o.x - u.x); if (dx <= D.range) cands.push({ o: o, dx: dx });
+    }
+    if (!cands.length) { u.convT = 0.4; return; }          // nobody in reach yet: look again soon
+    cands.sort(function (a, b) { return a.dx - b.dx; });
+    var n = u.big ? 2 : 1, time = D.time * (u.big ? 1.5 : 1);     // a big monk turns two, for longer
+    for (i = 0; i < Math.min(n, cands.length); i++) {
+      var best = cands[i].o; best.side = 'ally'; best.dir = 1; best.converted = time; best.anim = 'walk';
+      this.emit({ k: 'convert', x: best.x, y: best.y, unit: best.id });
+    }
+    u.convT = D.cool;
+  };
+  // Shield caster: is there an allied shield caster close enough to a point to take the blow?
+  P.shieldAt = function (x, side) {
+    for (var i = 0; i < this.units.length; i++) { var o = this.units[i], R = F.UNITS.shield.aura * (o.big ? 1.5 : 1); if (o.side === side && o.type === 'shield' && !o.dead && o.state !== 'dying' && o.state !== 'fall' && Math.abs(o.x - x) <= R) return true; }
+    return false;
+  };
+  // Fighters of one kind alive on that side (the cap per kind).
+  P.typeCount = function (type, side) {
+    var n = 0; for (var i = 0; i < this.units.length; i++) { var o = this.units[i]; if (o.side === side && o.type === type && !o.dead && o.state !== 'dying') n++; } return n;
+  };
+
   P.updateUnit = function (u, dt) {
     u.t += dt; u.cd -= dt; if (u.flash > 0) u.flash -= dt;
+    if (u.converted > 0) { u.converted -= dt; if (u.converted <= 0) { u.converted = 0; u.side = 'enemy'; u.dir = -1; this.emit({ k: 'unconvert', x: u.x, y: u.y }); } }
     if (u.state === 'dying') { if (u.t > 0.75) u.dead = true; return; }
     if (u.state === 'fall') { if (u.t >= 0.55) { u.state = 'getup'; u.t = 0; this.emit({ k: 'land', x: u.x, y: u.y, side: u.side }); } return; }
     if (u.state === 'getup') { u.anim = 'getup'; if (u.t >= 0.45) { u.state = 'go'; u.t = 0; } return; }
@@ -377,6 +446,7 @@
     if (D.power === 'rally') this.rally(u, dt);
     if (D.power === 'heal') { u.healT -= dt; if (u.healT <= 0) { u.healT = 2.2; this.healAround(u); } }
     if (D.power === 'pierce') this.cartHit(u, dt);
+    if (D.convert && u.side === 'ally') this.monkWork(u, dt);
     if (u.anim === 'attack') {
       u.at += dt;
       var wind = Math.min(0.5, u.cdMax * 0.45) * 0.7;
@@ -495,12 +565,17 @@
     p.done = true;
     var L = this, foes2 = p.side === 'ally' ? 'enemy' : 'ally';
     if (p.splash) {
+      if (p.owner.type === 'catapult' && this.shieldAt(p.x1, foes2)) { this.emit({ k: 'shielded', x: p.x1, y: p.y1 }); return; }
       this.emit({ k: 'boom', x: p.x1, y: p.y1, r: p.splash, kind: p.kind });
       var hits = this.units.filter(function (o) { return o.side === foes2 && o.state !== 'dying' && o.state !== 'fall' && !o.dead && Math.abs(o.x - p.x1) <= p.splash; });
-      hits.forEach(function (o) {
+      hits.sort(function (a, b) { return Math.abs(a.x - p.x1) - Math.abs(b.x - p.x1); });
+      // The nearest five take the full hit (less at the edge). Any others share half the blast, spread evenly, so a dense pack cannot all fall at once.
+      var direct = hits.slice(0, F.SPLASH_MAX), rest = hits.slice(F.SPLASH_MAX);
+      direct.forEach(function (o) {
         var fall = 1 - Math.abs(o.x - p.x1) / (p.splash * 1.4);
         L.hurt(o, dmgFrom(p.owner.atk, p.owner, o) * fall, null);
       });
+      rest.forEach(function (o) { L.hurt(o, dmgFrom(p.owner.atk * 0.5 / rest.length, p.owner, o), null); });
       this.hurtStructsAt(p.x1, p.splash, p.owner.atk * (F.UNITS[p.owner.type].siege || 1) * (p.fromStruct ? 0.5 : 1), p.side);
     } else {
       var tu = null; for (var m = 0; m < this.units.length; m++) if (this.units[m].id === p.tgt) tu = this.units[m];
@@ -518,13 +593,17 @@
       if (g.rate > 0 && g.type !== 'mult') { g.charge += g.rate * qt; this.produce(g); }
     }
   };
+  // A gear fed by a big multiplier needs more ticks for each unit: sqrt(gain / 2) times as many above 2x, so 8x is twice 2x, not four times.
+  P.gearNeed = function (g) { var base = F.ticksNeeded(g.type, g.level); return g.gmax > 2 ? base * Math.sqrt(g.gmax / 2) : base; };
   P.produce = function (g) {
-    var need = F.ticksNeeded(g.type, g.level); if (!need) return;
+    if (!F.ticksNeeded(g.type, g.level)) return;
+    var need = this.gearNeed(g);
+    if (g.charge > need * 2) g.charge = need * 2;          // at most two units stored: no single big drop
     var allies = 0; for (var i = 0; i < this.units.length; i++) if (this.units[i].side === 'ally') allies++;
     var guard = 0;
-    while (g.charge >= need && guard++ < 6) {
+    while (g.charge >= need && guard++ < 1) {
       if (F.UNITS[g.type]) {
-        if (allies >= F.MAX_UNITS) { g.charge = need; return; }
+        if (allies >= F.MAX_UNITS || this.typeCount(g.type, 'ally') >= F.UNIT_CAP(g.type)) { g.charge = need; return; }
         var x = this.dropX(g.c) + (this.rnd() - 0.5) * 24;
         var u = this.makeUnit('ally', g.type, g.level, x, false);
         u.gc = g.c; u.gr = g.r; allies++;
@@ -584,7 +663,7 @@
       for (i = this.queue.length - 1; i >= 0; i--) {
         var q = this.queue[i];
         if (this.t >= q.at && this.enemiesAlive() < F.MAX_UNITS) {
-          var e = this.makeUnit('enemy', q.type, 1, this.ebx + 20, q.boss);
+          var e = this.makeUnit('enemy', q.type, q.level || 1, this.ebx + 20, q.boss);
           e.state = 'go'; e.anim = 'walk'; this.queue.splice(i, 1);
           this.emit({ k: 'enemy', unit: e.id, boss: q.boss });
         }

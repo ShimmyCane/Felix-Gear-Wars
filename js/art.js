@@ -533,6 +533,25 @@
     var gl = a >= 0 ? Math.sin(a * Math.PI) : 0.25; c.fillStyle = 'rgba(255,240,170,' + (0.25 + gl * 0.4).toFixed(2) + ')'; c.beginPath(); c.arc(72, by - 60, 6 + gl * 10, 0, TAU); c.fill();
   };
 
+  DRAW.monk = function (c, st) {          // brown habit, a tonsure, a staff with a cross
+    var a = st.a, sw = a >= 0 ? lerp(-1.4, 0.2, ease(a)) : -0.3;
+    legs(c, st); torso(c, st, { col: st.F('#8d6a3b') });
+    var h = head(c, st, 1, -61); if (!cultHead(c, st, h, 'monk')) { circ(c, h.x, h.y - h.r * 0.75, h.r * 0.42, st.F('#e8dcc0')); }
+    arm(c, -2, -46 + st.bob, 0.2, 6, st.F(st.pal.skin));
+    var hand = arm(c, 7, -46 + st.bob, sw, 6, st.F(st.pal.skin));
+    var tx = hand.x + 4, ty = hand.y - 60;
+    seg(c, hand.x, hand.y, tx, ty, 3, st.F('#6b4a22'));
+    seg(c, tx, ty + 6, tx, ty - 12, 2.4, st.F('#e8c96a')); seg(c, tx - 5, ty - 4, tx + 5, ty - 4, 2.4, st.F('#e8c96a'));
+  };
+  DRAW.shield = function (c, st) {        // blue tunic, a round shield with a glowing dome around the line
+    legs(c, st); torso(c, st, { w: 26, col: st.F('#3f6fb0') });
+    var h = head(c, st, 1, -61); if (!cultHead(c, st, h, 'shield')) { steelHelm(c, st, h, '#9fd0ff'); enemyHat(c, st, h); }
+    var hand = arm(c, 7, -46 + st.bob, 0.05, 6.5, st.F(st.pal.skin));
+    var sx = hand.x + 6, sy = hand.y - 4;
+    circ(c, sx, sy, 17, st.F('#5f8fd0')); circ(c, sx, sy, 6, st.F('#e8f6ff'));
+    c.beginPath(); c.arc(sx, sy, 17, 0, TAU); c.lineWidth = 1.6; c.stroke(); c.lineWidth = Art.lw;
+    c.beginPath(); c.arc(0, -10, 40, Math.PI * 1.08, Math.PI * 1.92); c.strokeStyle = 'rgba(160,210,255,0.55)'; c.lineWidth = 3; c.stroke(); c.lineWidth = Art.lw; c.strokeStyle = Art.ink;
+  };
   var DRAW_END = 0;
   // Draw one unit. (sx, sy) is where its feet are on screen.
   Art.drawUnit = function (c, u, sx, sy, t) {
@@ -550,14 +569,20 @@
     // shadow
     c.globalAlpha = 0.25 * alpha; c.fillStyle = '#000'; c.beginPath(); c.ellipse(0, 1, 20 * sc, 5 * sc, 0, 0, TAU); c.fill();
     if (lvl >= 2 && u.anim !== 'die') {      // each level of gear gives its fighter a new flourish: ring, glow, then golden sparkle
-      c.globalAlpha = alpha; c.lineWidth = 3; c.strokeStyle = Art.C(['', '#d5dbe8', '#f2c94c', '#ffd75a'][lvl - 1]);
+      c.globalAlpha = alpha; c.lineWidth = 3; c.strokeStyle = Art.C(['', '#d5dbe8', '#f2c94c', '#ffd75a', '#ff9f1c', '#ff5a5a'][Math.min(5, lvl - 1)]);
       c.beginPath(); c.ellipse(0, 1, 25 * sc, 7 * sc, 0, 0, TAU); c.stroke();
       if (lvl >= 3) { var gl = c.createRadialGradient(0, -34 * sc, 2, 0, -34 * sc, 46 * sc); gl.addColorStop(0, 'rgba(255,220,100,' + (lvl === 3 ? 0.3 : 0.42) + ')'); gl.addColorStop(1, 'rgba(255,220,100,0)'); c.fillStyle = gl; c.beginPath(); c.arc(0, -34 * sc, 46 * sc, 0, TAU); c.fill(); }
+      if (lvl >= 5) { c.lineWidth = 2.6; c.strokeStyle = Art.C('#ff9f1c'); c.beginPath(); c.ellipse(0, 1, (33 + 2 * Math.sin(tt * 3)) * sc, 10 * sc, 0, 0, TAU); c.stroke(); c.strokeStyle = Art.ink; c.lineWidth = Art.lw; }
       if (lvl >= 4) { c.lineWidth = 2; c.globalAlpha = alpha * (0.5 + 0.4 * Math.sin(tt * 4)); c.beginPath(); c.ellipse(0, 1, (30 + 3 * Math.sin(tt * 4)) * sc, 9 * sc, 0, 0, TAU); c.stroke(); }
     }
     var fy = u.fly ? Art.flyY(u, t) : 0;
     c.globalAlpha = alpha; c.translate(0, fy); c.scale(face * sc, sc); c.rotate(rot * face);
-    inkStyle(c); fn(c, st); c.restore();
+    inkStyle(c); fn(c, st);
+    if (lvl >= 6 && u.anim !== 'die') {          // level 6: a gold crown over the head, the size of a boss
+      c.fillStyle = Art.C('#f2c94c'); c.strokeStyle = Art.ink; c.lineWidth = 1.6;
+      c.beginPath(); c.moveTo(-9, -84); c.lineTo(-9, -96); c.lineTo(-4.5, -90); c.lineTo(0, -99); c.lineTo(4.5, -90); c.lineTo(9, -96); c.lineTo(9, -84); c.closePath(); c.fill(); c.stroke();
+    }
+    c.restore();
     if (u.anim !== 'die' && (lvl >= 2 || u.champ || u.special)) {   // above the head: one gold star per gear level above the first, a bigger star for the culture's specialty, a crown on a champion
       c.save(); c.translate(sx, sy); inkStyle(c); var top = -80 * sc - 20 + (u.fly ? Art.flyY(u, t) : 0), n = lvl - 1, startX = -((n - 1) * 15) / 2 - (u.special ? 11 : 0);
       for (var si = 0; si < n; si++) { var sx2 = startX + si * 15, sz = 6.5; c.beginPath();
@@ -593,6 +618,8 @@
     c.save(); c.translate(x, y); c.scale(s, s); c.lineWidth = 2.2 / s * 1.0; c.strokeStyle = Art.ink; c.fillStyle = col || '#fff'; c.lineJoin = 'round'; c.lineCap = 'round';
     switch (type) {
       case 'spearman': c.beginPath(); c.moveTo(-9, 9); c.lineTo(8, -8); c.stroke(); c.beginPath(); c.moveTo(4, -12); c.lineTo(12, -12); c.lineTo(12, -4); c.closePath(); c.fill(); c.stroke(); break;
+      case 'monk': c.beginPath(); c.moveTo(0, -12); c.lineTo(0, 12); c.stroke(); c.beginPath(); c.moveTo(-7, -4); c.lineTo(7, -4); c.stroke(); c.beginPath(); c.arc(0, -4, 1.4, 0, TAU); c.fill(); break;
+      case 'shield': c.beginPath(); c.moveTo(-10, -9); c.lineTo(10, -9); c.lineTo(10, 1); c.quadraticCurveTo(10, 10, 0, 13); c.quadraticCurveTo(-10, 10, -10, 1); c.closePath(); c.fill(); c.stroke(); break;
       case 'archer': c.beginPath(); c.arc(-3, 0, 11, -1.2, 1.2); c.stroke(); c.beginPath(); c.moveTo(-3 + Math.cos(1.2) * 11, Math.sin(1.2) * 11); c.lineTo(-3 + Math.cos(1.2) * 11, -Math.sin(1.2) * 11); c.stroke(); c.beginPath(); c.moveTo(-8, 0); c.lineTo(11, 0); c.stroke(); c.beginPath(); c.moveTo(11, 0); c.lineTo(6, -4); c.lineTo(6, 4); c.closePath(); c.fill(); break;
       case 'fighter': c.beginPath(); c.moveTo(-9, -9); c.lineTo(9, -9); c.lineTo(9, 1); c.quadraticCurveTo(9, 9, 0, 12); c.quadraticCurveTo(-9, 9, -9, 1); c.closePath(); c.fill(); c.stroke(); c.beginPath(); c.moveTo(0, -9); c.lineTo(0, 11); c.stroke(); break;
       case 'assassin': c.beginPath(); c.moveTo(0, -12); c.lineTo(5, 0); c.lineTo(0, 12); c.lineTo(-5, 0); c.closePath(); c.fill(); c.stroke(); c.beginPath(); c.moveTo(-7, 6); c.lineTo(7, 6); c.stroke(); break;
@@ -657,7 +684,12 @@
     // level pips are drawn upright, not turning
     c.save(); c.translate(x, y);
     if (opts.star) Art.starBadge(c, -r * 0.78, -r * 0.78, 9);
-    for (var i = 0; i < g.level; i++) { var px = (i - (g.level - 1) / 2) * 9, py = r * 0.86; c.beginPath(); c.arc(px, py, 3.4, 0, TAU); c.fillStyle = Art.theme.gold2; c.fill(); c.strokeStyle = Art.ink; c.lineWidth = 1.4; c.stroke(); }
+    if (g.level >= 5) Art.starBadge(c, 0, r * 0.86, 9);      // level 5: a gold star instead of the pips
+    else for (var i = 0; i < g.level; i++) { var px = (i - (g.level - 1) / 2) * 9, py = r * 0.86; c.beginPath(); c.arc(px, py, 3.4, 0, TAU); c.fillStyle = Art.theme.gold2; c.fill(); c.strokeStyle = Art.ink; c.lineWidth = 1.4; c.stroke(); }
+    if (lv >= 6) {                                   // level 6: a gold crown above the gear
+      c.fillStyle = Art.C('#f2c94c'); c.strokeStyle = Art.ink; c.lineWidth = 1.6;
+      c.beginPath(); c.moveTo(-9, -r - 2); c.lineTo(-9, -r - 13); c.lineTo(-4.5, -r - 7); c.lineTo(0, -r - 16); c.lineTo(4.5, -r - 7); c.lineTo(9, -r - 13); c.lineTo(9, -r - 2); c.closePath(); c.fill(); c.stroke();
+    }
     if (g.type === 'mult' || !need) { /* no ticks to show */ }
     c.restore();
   };
