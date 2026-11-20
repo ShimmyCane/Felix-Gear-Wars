@@ -54,6 +54,8 @@
   F.SPEEDS = [0.5, 1, 2, 4, 8];
   F.RENDER_SKIP_SPEED = 4;     // at this speed and up the screen is drawn one frame every 0.1 s (the game still runs every frame)
   F.WAVE_BASE = 26;             // enemies in one wave at press 1 (harder modes allow more, see sim.js makeWave)
+  F.MODE_ROYAL = { easy: 1, medium: 1.4, hard: 2 };   // how much faster the crown (royal) gear fills, by mode
+  F.modeRoyal = function (m) { return F.MODE_ROYAL[F.modeOf(m)]; };
   F.modeOf = function (m) { return F.MODES[m] ? m : 'medium'; };
   F.modePress = function (mode, idx) { var m = F.modeOf(mode); return F.MODE_PRESS[m] * ((F.LEVEL_PRESS[m] && F.LEVEL_PRESS[m][idx]) || 1); };
 
@@ -72,7 +74,7 @@
     assassin: { name: 'Assassin', cost: 50, tick0: 16, hp: 46, atk: 18, def: 2, range: 40, speed: 98, cd: 0.6, kind: 'melee',
       vs: { archer: 2.0, mage: 2.0, catapult: 2.0, fighter: 0.6, tank: 0.4 }, hunts: true, order: 4 },
     knight:   { name: 'Knight', cost: 65, tick0: 20, hp: 125, atk: 15, def: 10, range: 56, speed: 92, cd: 1.1, kind: 'melee',
-      vs: { archer: 1.6, mage: 1.5, catapult: 1.6, assassin: 1.2, spearman: 0.8, tank: 0.6 }, charge: 1.8, order: 5 },
+      vs: { archer: 1.6, mage: 1.5, catapult: 1.6, assassin: 1.2, spearman: 0.8, tank: 0.6 }, charge: 3, order: 5 },
     tank:     { name: 'Tank', cost: 70, tick0: 30, hp: 290, atk: 12, def: 26, range: 50, speed: 26, cd: 1.4, kind: 'melee',
       vs: {}, order: 6 },
     mage:     { name: 'Mage', cost: 70, tick0: 18, hp: 44, atk: 22, def: 1, range: 280, speed: 36, cd: 1.7, kind: 'ranged',
@@ -86,6 +88,20 @@
   };
   F.UNIT_ORDER = ['spearman', 'archer', 'fighter', 'assassin', 'knight', 'tank', 'mage', 'catapult', 'monk', 'shield'];
   // Most fighters of one kind on the field: 5 for tier 1 up to 50 for tier 10 (the order above). The free-for-all has them all.
+  F.tierOf = function (type) { var i = F.UNIT_ORDER.indexOf(type); return i < 0 ? 99 : i + 1; };
+  // Single-use moves, from merge level 3. They fire once, the first time an enemy they can reach comes close.
+  // They do nothing to a higher-ranked enemy (a higher tier, a champion or a boss).
+  F.SKILLS = {
+    spearman: { name: 'Push back', trigger: 120, radius: 140, push: 200 },
+    archer:   { name: 'Long shot', trigger: 600, reach: 660, mult: 3 },              // the weakest enemy archer, mage or catapult in reach
+    fighter:  { name: 'Raise shield', trigger: 140, dur: 2, radius: 190 },           // allies in front block arrows and catapult stones for 2 s
+    assassin: { name: 'Dive', trigger: 260, dist: 340, mult: 0.8 },                  // dives through the front line, hurting all it passes
+    tank:     { name: 'Stomp', trigger: 120, radius: 170, slow: 1.5 },               // enemies near it crawl for 1.5 s
+    mage:     { name: 'Fireball', trigger: 300, dist: 320, radius: 110, mult: 1.6 },  // a burst of fire on a group ahead
+    catapult: { name: 'Volley', trigger: 300, reach: 560, count: 3, mult: 1.4 },      // three stones at three enemies
+    monk:     { name: 'Bless', trigger: 160, radius: 240, heal: 0.4 },                // allies nearby heal 40% of their health
+    shield:   { name: 'Bulwark', trigger: 160, dur: 4 },                              // its ring is twice as strong for 4 s
+  };
   F.UNIT_CAP = function (type) { var i = F.UNIT_ORDER.indexOf(type); return i < 0 ? F.MAX_UNITS : 5 * (i + 1); };
 
   // ---- champions: what a boss gear makes. Each is a different awesome unit with its own power --------------------
@@ -257,14 +273,27 @@
   };
 
   F.levelIndex = function (ch, lv) { return (ch - 1) * 3 + (lv - 1); };
+  // After chapter 10 the story is to be continued: endless chapters, every unit on both sides, a new fighter to learn each time.
+  F.chapter = function (ch) {
+    if (ch <= F.CHAPTERS.length) return F.CHAPTERS[ch - 1];
+    var k = ch - F.CHAPTERS.length, biomes = ['plains', 'fortress', 'night', 'mountain', 'forest'];
+    return { n: ch, screens: 2, title: 'To be continued ' + k, fighter: F.UNIT_ORDER[(k - 1) % F.UNIT_ORDER.length], pool: F.UNIT_ORDER.slice(),
+      cols: 9, rows: 4, biome: biomes[k % biomes.length], boss: 'The Horde Champion', special: null, endless: true };
+  };
+  F.endStory = function (idx) {
+    var k = idx - F.STORIES.length;
+    if (k === 0) return { cap: 'To be continued...', short: 'Chapter 10 is won. The Horde is not finished. Every fighter is now on the field, on both sides.',
+      story: 'The bells, the shields and the stones have all been seen. But the Horde is not finished, and neither are you. From here on, every fighter is in every battle. Keep your gears turning. To be continued...' };
+    return { cap: 'Chapter ' + (k + 10) + ' — to be continued', short: 'Every fighter, both sides. Learn each one and keep going.', story: 'The fight goes on. Every fighter stands on both sides now. Hold the wall and keep the Heart ticking.' };
+  };
   F.unlockedFighters = function (ch) {
-    var c = F.CHAPTERS[ch - 1], res = [];
+    var c = F.chapter(ch), res = [];
     for (var i = 0; i < F.UNIT_ORDER.length; i++) { res.push(F.UNIT_ORDER[i]); if (F.UNIT_ORDER[i] === c.fighter) break; }
     return res;
   };
   F.unlockedSpecials = function (ch) {
     var res = ch >= 2 ? ['boss'] : [];
-    for (var i = 0; i < ch; i++) if (F.CHAPTERS[i].special) res.push(F.CHAPTERS[i].special);
+    for (var i = 1; i <= ch; i++) if (F.chapter(i).special) res.push(F.chapter(i).special);
     return res;
   };
   F.tierFor = function (idx, setting) {
@@ -319,7 +348,7 @@
 
   F.levelConfig = function (ch, lv, o) {
     o = o || {};
-    var C = F.CHAPTERS[ch - 1], idx = F.levelIndex(ch, lv);
+    var C = F.chapter(ch), idx = F.levelIndex(ch, lv);
     var seed = 1000 + idx * 77 + (o.seedOffset || 0);
     var rnd = F.rng(seed);
     var lay = layout(C.cols, C.rows, idx, rnd);
@@ -349,7 +378,7 @@
       board: { cols: C.cols, rows: C.rows, heart: lay.heart, holes: holes, dormant: dorm },
       mode: F.modeOf(o.mode), lives: Math.round((20 + 5 * ch) * F.MODES[F.modeOf(o.mode)].lives), coins: eco.coins, creep: eco.creep, gearTarget: eco.gearTarget, lastWave: eco.lastWave, dynamic: true, len: C.screens <= 1 ? F.TUNE.short : C.screens < 2 ? F.TUNE.mid : 1, waves: [], bossName: lv === 3 ? C.boss : null, bossType: lv === 3 ? C.fighter : null,
       baseHp: F.TUNE.fort + F.TUNE.fortPer * idx, pool: pool, specials: F.unlockedSpecials(ch), quick: !!o.quick,
-      story: F.STORIES[idx],
+      story: F.STORIES[idx] || F.endStory(idx),
     };
   };
 
