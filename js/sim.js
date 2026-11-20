@@ -373,10 +373,26 @@
     if (t.dead || t.state === 'dying') return;
     t.hp -= amount; t.flash = 0.18;
     this.emit({ k: 'hit', x: t.x, y: t.y, dmg: amount, side: t.side, type: t.type, big: amount > t.max * 0.25 });
-    if (t.hp <= 0) this.kill(t);
+    if (t.hp <= 0) this.kill(t, src);
   };
-  P.kill = function (t) {
+  P.kill = function (t, src) {
     t.state = 'dying'; t.anim = 'die'; t.t = 0; t.hp = 0;
+    // a blob bit that lands a kill grows, and five kills by the bits reform the blob
+    if (src && src.group && t.side === 'enemy') {
+      var g = src.group; g.kills++;
+      if ((src.grows || 0) < 4) { src.grows = (src.grows || 0) + 1; var oldMax = src.max; src.max *= 1.25; src.hp += 0.25 * oldMax; src.atk *= 1.15; }
+      if (g.kills >= 5) this.reformBlob(g);
+    }
+    // a necromancer raises the enemy that just fell, if one is near and ready
+    if (t.side === 'enemy' && !t.champ && !t.boss && !t.bit) {
+      for (var ni = 0; ni < this.units.length; ni++) {
+        var n = this.units[ni];
+        if (n.side === 'ally' && n.type === 'necromancer' && !n.dead && n.state !== 'dying' && (n.raiseCD || 0) <= 0 && Math.abs(n.x - t.x) <= 320) {
+          var r = this.makeUnit('ally', t.type, 1, t.x, false); r.hp = r.max * 0.5; r.raised = true; n.raiseCD = 3;
+          this.emit({ k: 'raise', x: t.x, y: t.y, unit: r.id }); break;
+        }
+      }
+    }
     if (t.side === 'enemy') {
       var b = F.bounty(t.type, t.boss);
       this.coins += b; this.earned += b; this.kills++;
@@ -455,6 +471,27 @@
     for (var i = 0; i < this.units.length; i++) { var a = this.units[i]; if (a.side === u.side && !a.dead && a.state !== 'dying' && a.hp < a.max * 0.6 && Math.abs(a.x - u.x) <= r) return true; }
     return false;
   };
+  // ---- the blob: splits into ten bits, five kills reform it; only one blob at a time ----------------------------
+  P.blobAlive = function () {
+    for (var i = 0; i < this.units.length; i++) { var o = this.units[i]; if (o.side === 'ally' && (o.type === 'blob' || o.type === 'blobling') && !o.dead && o.state !== 'dying') return true; }
+    return false;
+  };
+  P.split = function (u) {
+    u.split = true; u.dead = true;
+    var g = { kills: 0 };
+    for (var i = 0; i < 10; i++) { var b = this.makeUnit('ally', 'blobling', 1, u.x + (i - 4.5) * 12, false); b.group = g; }
+    this.emit({ k: 'split', x: u.x, y: u.y });
+  };
+  P.reformBlob = function (g) {
+    var bits = this.units.filter(function (o) { return o.group === g && !o.dead && o.state !== 'dying'; });
+    if (!bits.length) return;
+    if (this.units.some(function (o) { return o.type === 'blob' && o.side === 'ally' && !o.dead && o.state !== 'dying'; })) return;   // never more than one blob
+    var x = 0; bits.forEach(function (b) { x += b.x; }); x /= bits.length;
+    bits.forEach(function (b) { b.dead = true; });
+    var nb = this.makeUnit('ally', 'blob', 1, x, false); nb.split = true;
+    g.kills = 0;
+    this.emit({ k: 'reform', x: x, y: 0 });
+  };
   // How far a fighter is ahead of the rearmost fighter on its side.
   P.leadGap = function (u) {
     var rear = u.x;
@@ -507,6 +544,9 @@
     if (D.power === 'pierce') this.cartHit(u, dt);
     if (D.convert && u.side === 'ally') this.monkWork(u, dt);
     if (u.bulwark > 0) u.bulwark -= dt;
+    if (u.raiseCD > 0) u.raiseCD -= dt;
+    if (u.champ && u.hp < u.max) u.hp = Math.min(u.max, u.hp + F.CHAMP_REGEN * u.max * dt);
+    if (D.power === 'split' && !u.split) this.split(u);
     if (u.level >= 3 && u.side === 'ally' && !u.skillUsed && F.SKILLS[u.type]) {
       var SK = F.SKILLS[u.type];
       var ready = u.type === 'monk' ? this.woundedNear(u, SK.radius) : this.skillFoes(u, SK.trigger).length;   // a monk blesses a hurt ally: its conversion would take the enemies
@@ -618,6 +658,7 @@
     if (S2) { this.hurtStruct(S2, power * (D.siege || 1.3)); this.emit({ k: 'slash', x: S2.x, y: 0, side: u.side }); return; }
     var dm = dmgFrom(power, { type: u.type }, t);
     this.hurt(t, dm, u);
+    if (D.drain) u.hp = Math.min(u.max, u.hp + dm);      // a bit drains what it hits
     this.emit({ k: 'slash', x: t.x, y: t.y, from: u.x, side: u.side, type: u.type });
     if (D.power === 'quake') this.quake(u, power);
   };
@@ -695,7 +736,8 @@
         g.charge -= need;
       } else if (g.type === 'boss') {
         if (allies >= F.MAX_UNITS) { g.charge = need; return; }
-        var ct = F.CHAMP_ORDER[Math.floor(this.rnd() * F.CHAMP_ORDER.length)], bu = this.makeUnit('ally', ct, g.level, this.dropX(g.c), false);
+        var ct = F.CHAMP_ORDER[Math.floor(this.rnd() * F.CHAMP_ORDER.length)]; if (ct === 'blob' && this.blobAlive()) ct = 'dragon';
+        var bu = this.makeUnit('ally', ct, g.level, this.dropX(g.c), false);
         allies++;
         this.emit({ k: 'pop', gear: g.id, c: g.c, r: g.r, unit: bu.id, type: ct, level: g.level, champ: true });
         g.charge -= need;

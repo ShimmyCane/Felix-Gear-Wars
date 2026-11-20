@@ -552,6 +552,24 @@
     c.beginPath(); c.arc(sx, sy, 17, 0, TAU); c.lineWidth = 1.6; c.stroke(); c.lineWidth = Art.lw;
     c.beginPath(); c.arc(0, -10, 40, Math.PI * 1.08, Math.PI * 1.92); c.strokeStyle = 'rgba(160,210,255,0.55)'; c.lineWidth = 3; c.stroke(); c.lineWidth = Art.lw; c.strokeStyle = Art.ink;
   };
+  DRAW.necromancer = function (c, st) {     // a dark robe, a skull on a staff
+    legs(c, st); torso(c, st, { w: 24, col: st.F('#4a2f63') });
+    var h = head(c, st, 1, -61); if (!cultHead(c, st, h, 'necromancer')) { circ(c, h.x, h.y - h.r * 0.5, h.r * 0.95, st.F('#4a2f63')); }
+    var hand = arm(c, 7, -46 + st.bob, -0.6, 6, st.F(st.pal.skin));
+    seg(c, hand.x, hand.y, hand.x + 4, hand.y - 64, 3, st.F('#5a3a1e'));
+    circ(c, hand.x + 4, hand.y - 70, 8, st.F('#efe9d6')); circ(c, hand.x + 1, hand.y - 71, 2, Art.ink); circ(c, hand.x + 7, hand.y - 71, 2, Art.ink);
+  };
+  DRAW.blob = function (c, st) {            // a big green jelly with a shine and bubbles
+    var w = Math.sin(st.t * 3) * 3;
+    c.beginPath(); c.ellipse(0, -18, 30 + w, 26 - w * 0.5, 0, 0, TAU); fillStroke(c, st.F('#6fcf6a'));
+    c.beginPath(); c.ellipse(-8, -30, 9, 5, -0.4, 0, TAU); c.fillStyle = 'rgba(255,255,255,0.55)'; c.fill();
+    [[-14, -10, 4], [12, -8, 3], [2, -4, 5]].forEach(function (b) { circ(c, b[0], b[1], b[2], st.F('#a8f0a0')); });
+    circ(c, -8, -20, 3, Art.ink); circ(c, 8, -20, 3, Art.ink);
+  };
+  DRAW.blobling = function (c, st) {        // a small green bit
+    c.beginPath(); c.ellipse(0, -6, 8 + Math.sin(st.t * 4) * 1.2, 7, 0, 0, TAU); fillStroke(c, st.F('#7fd672'));
+    circ(c, -2, -9, 1.6, Art.ink);
+  };
   var DRAW_END = 0;
   // Draw one unit. (sx, sy) is where its feet are on screen.
   Art.drawUnit = function (c, u, sx, sy, t) {

@@ -20,7 +20,7 @@
   window.addEventListener('unhandledrejection', function (ev) { GW.err('Promise error', ev.reason); });
 
   // ---- settings and progress (device storage, always in try/catch) -----------------------------
-  var DEF = { mode: 'medium', showFun: 0, funPeak: 3, funFade: 7, challenge: 1, bossRevs: 100, voice: 'auto', heartSpeed: 1, theme: 'manuscript', sfx: 0.8, music: 0.5, speed: 1, quick: 0, follow: 1, reading: 'auto', showErrors: 0 };
+  var DEF = { mode: 'medium', showFun: 0, funPeak: 3, funFade: 7, challenge: 1, bossRevs: 20, voice: 'auto', heartSpeed: 1, theme: 'manuscript', sfx: 0.8, music: 0.5, speed: 1, quick: 0, follow: 1, reading: 'auto', showErrors: 0 };
   var S = Object.assign({}, DEF);
   try { var raw = JSON.parse(localStorage.getItem('fgw.settings') || '{}'); Object.keys(DEF).forEach(function (k) { if (raw[k] !== undefined) S[k] = raw[k]; }); } catch (e) { /* storage blocked */ }
   function saveSettings() { try { localStorage.setItem('fgw.settings', JSON.stringify(S)); } catch (e) { /* ignore */ } }
@@ -144,6 +144,9 @@
         case 'convert': p = [e.x - scroll, Art.groundY(L.bf) - 40]; ring(p[0], p[1], 46, '#c7f0a0'); floatText(p[0], p[1] - 40, 'Turned!', '#c7f0a0'); Au.play('merge'); break;
         case 'shielded': p = [e.x - scroll, Art.groundY(L.bf) - 30]; ring(p[0], p[1], 40, '#9fd0ff'); sparks(p[0], p[1], 10, '#cfe8ff'); Au.play('land'); break;
         case 'skill': floatText(e.x - scroll, Art.groundY(L.bf) - 96, e.name + '!', e.side === 'ally' ? '#ffe27a' : '#ffb0a0'); ring(e.x - scroll, Art.groundY(L.bf) - 30, 36, '#ffe27a'); Au.play('horn', false); break;
+        case 'split': sparks(e.x - scroll, Art.groundY(L.bf) - 30, 14, '#7fd672'); Au.play('pop'); break;
+        case 'raise': ring(e.x - scroll, Art.groundY(L.bf) - 20, 44, '#b98cff'); floatText(e.x - scroll, Art.groundY(L.bf) - 70, 'Rise!', '#d9c2ff'); Au.play('merge'); break;
+        case 'reform': ring(e.x - scroll, Art.groundY(L.bf) - 30, 70, '#7fd672'); floatText(e.x - scroll, Art.groundY(L.bf) - 90, 'The blob reforms!', '#c7f0a0'); Au.play('horn', false); break;
         case 'dodge': floatText(e.x - scroll, Art.groundY(L.bf) - 70, 'Dodged!', '#c7f0a0'); break;
         case 'basehit': Au.play('base'); sparks(sim.ebx - scroll + 60, Art.groundY(L.bf) - 40, 6, '#ffd090'); break;
         case 'basefall': shake = 14; Au.play('boom'); puff(sim.ebx - scroll + 80, Art.groundY(L.bf) - 50, 30, '#7a6a60', 160, 40); break;
@@ -594,7 +597,7 @@
     var er = $('showErrors'); if (er) er.checked = !!+S.showErrors;
     var fp = $('funPeak'); if (fp) { fp.value = S.funPeak; $('funFade').value = S.funFade; $('challenge').value = S.challenge; if (GW.applyFun) GW.applyFun(); }
     var br2 = $('bossRevs'); if (br2) { br2.value = S.bossRevs; $('bossRevsVal').textContent = '1 : ' + S.bossRevs; }
-    F.BOSS_REVS = +S.bossRevs || 100;
+    F.BOSS_REVS = +S.bossRevs || 20;
     var hs = $('heartSpeed'); if (hs) { hs.value = S.heartSpeed; $('heartSpeedVal').textContent = '×' + (+S.heartSpeed).toFixed(2).replace(/0$/, ''); }
     Art.setTheme(S.theme); Au.setVolumes(+S.sfx, +S.music);
     if (sim) sim.specialty = Art.specialty();
