@@ -16,13 +16,14 @@
   F.TUNE = { base: 30, perLevel: 26, perWave: 0.5, hp: 0.09, atk: 0.055, fort: 700, fortPer: 80, short: 0.6, mid: 0.85, rLow: 0.4, rPeak: 1.1, rIdx: 1.1, gearsPerLast: 0.8 };   // rLow, rPeak: wave power against Felix's power at the start and at the fun peak; rIdx: extra pressure by the last level   // short, mid: wave size on a one-screen and a one-and-a-half-screen map
   F.MAX_UNITS = 50;            // soldiers on each side at once
 
-  F.SM = [1, 2.2, 4.6, 9.4];   // stat multiplier per gear level (more than double per merge)
+  F.SM = [1, 2.2, 4.6, 9.4, 19.5];   // stat multiplier per gear level (more than double per merge)
   F.SPECIALTY_BONUS = 1.25;    // a culture's starred fighter gets +25% attack and health
   F.LEVEL_SPEED = 0.92;        // each merge level needs this much of the ticks: stats x2.2 for 8% less time, about 20% better than two side by side
   F.MULTV = [1, 2, 4, 8];      // multiplier gear values
   F.MULTCAP = 8;               // a chain of multipliers never passes on more than 8x (22x used to break the screen)
   F.MULT_COST = [15, 40, 110, 300];   // price of a multiplier by its value: doubling the heart speed costs more
-  F.MAXLEVEL = 4;
+  F.MAXLEVEL = 5;              // level 5 shows a gold star in place of the pips
+  F.MULT_MAXLEVEL = 4;         // multipliers stop at 8x (no value for a fifth level)
   F.SPLASH_MAX = 5;            // a splash hit takes at most this many soldiers at full strength; the rest share the spread
   // Price, and sell value at half, of a gear: multipliers by their value, others by level (each merge doubles).
   F.gearValue = function (type, level) { return type === 'mult' ? F.MULT_COST[level - 1] : F.gearCost(type) * Math.pow(2, level - 1); };

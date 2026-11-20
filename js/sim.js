@@ -154,7 +154,8 @@
     this.gears.splice(this.gears.indexOf(g), 1); delete this.grid[g.c + ',' + g.r];
   };
   P.canMerge = function (a, b) {
-    return a && b && a !== b && a.type === b.type && a.level === b.level && a.level < F.MAXLEVEL && !a.locked && !b.locked;
+    var max = a.type === 'mult' ? F.MULT_MAXLEVEL : F.MAXLEVEL;
+    return a && b && a !== b && a.type === b.type && a.level === b.level && a.level < max && !a.locked && !b.locked;
   };
   // Every gear you own makes the next one dearer (a level starts with a fixed purse and the price creeps up), so the number of gears
   // you can afford by the end follows the size of the enemy's last wave. Merging and selling bring the price down again.

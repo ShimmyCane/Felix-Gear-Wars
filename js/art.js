@@ -569,9 +569,10 @@
     // shadow
     c.globalAlpha = 0.25 * alpha; c.fillStyle = '#000'; c.beginPath(); c.ellipse(0, 1, 20 * sc, 5 * sc, 0, 0, TAU); c.fill();
     if (lvl >= 2 && u.anim !== 'die') {      // each level of gear gives its fighter a new flourish: ring, glow, then golden sparkle
-      c.globalAlpha = alpha; c.lineWidth = 3; c.strokeStyle = Art.C(['', '#d5dbe8', '#f2c94c', '#ffd75a'][lvl - 1]);
+      c.globalAlpha = alpha; c.lineWidth = 3; c.strokeStyle = Art.C(['', '#d5dbe8', '#f2c94c', '#ffd75a', '#ff9f1c'][lvl - 1]);
       c.beginPath(); c.ellipse(0, 1, 25 * sc, 7 * sc, 0, 0, TAU); c.stroke();
       if (lvl >= 3) { var gl = c.createRadialGradient(0, -34 * sc, 2, 0, -34 * sc, 46 * sc); gl.addColorStop(0, 'rgba(255,220,100,' + (lvl === 3 ? 0.3 : 0.42) + ')'); gl.addColorStop(1, 'rgba(255,220,100,0)'); c.fillStyle = gl; c.beginPath(); c.arc(0, -34 * sc, 46 * sc, 0, TAU); c.fill(); }
+      if (lvl >= 5) { c.lineWidth = 2.6; c.strokeStyle = Art.C('#ff9f1c'); c.beginPath(); c.ellipse(0, 1, (33 + 2 * Math.sin(tt * 3)) * sc, 10 * sc, 0, 0, TAU); c.stroke(); c.strokeStyle = Art.ink; c.lineWidth = Art.lw; }
       if (lvl >= 4) { c.lineWidth = 2; c.globalAlpha = alpha * (0.5 + 0.4 * Math.sin(tt * 4)); c.beginPath(); c.ellipse(0, 1, (30 + 3 * Math.sin(tt * 4)) * sc, 9 * sc, 0, 0, TAU); c.stroke(); }
     }
     var fy = u.fly ? Art.flyY(u, t) : 0;
@@ -678,7 +679,8 @@
     // level pips are drawn upright, not turning
     c.save(); c.translate(x, y);
     if (opts.star) Art.starBadge(c, -r * 0.78, -r * 0.78, 9);
-    for (var i = 0; i < g.level; i++) { var px = (i - (g.level - 1) / 2) * 9, py = r * 0.86; c.beginPath(); c.arc(px, py, 3.4, 0, TAU); c.fillStyle = Art.theme.gold2; c.fill(); c.strokeStyle = Art.ink; c.lineWidth = 1.4; c.stroke(); }
+    if (g.level >= 5) Art.starBadge(c, 0, r * 0.86, 9);      // level 5: a gold star instead of the pips
+    else for (var i = 0; i < g.level; i++) { var px = (i - (g.level - 1) / 2) * 9, py = r * 0.86; c.beginPath(); c.arc(px, py, 3.4, 0, TAU); c.fillStyle = Art.theme.gold2; c.fill(); c.strokeStyle = Art.ink; c.lineWidth = 1.4; c.stroke(); }
     if (g.type === 'mult' || !need) { /* no ticks to show */ }
     c.restore();
   };
