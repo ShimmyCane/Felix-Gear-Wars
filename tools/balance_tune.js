@@ -16,8 +16,8 @@ var Bot = require('./bot.js');
 
 var TARGET = { easy: 0.95, medium: 0.75, hard: 0.35 };
 var BAND = { easy: [0.9, 1.0], medium: [0.6, 0.85], hard: [0.2, 0.5] };     // verify: the bot's win rate must fall in these
-var SAMPLE = [[1, 1], [1, 3], [2, 2], [3, 1], [4, 3], [5, 2], [6, 3], [7, 1], [8, 1], [8, 3]];   // spread over the campaign
-var ALL = []; for (var i = 0; i < 24; i++) ALL.push([Math.floor(i / 3) + 1, i % 3 + 1]);
+var SAMPLE = [[1, 1], [1, 3], [2, 2], [3, 1], [4, 3], [5, 2], [6, 3], [7, 1], [8, 1], [8, 3], [9, 2], [10, 1]];   // spread over the campaign
+var ALL = []; for (var i = 0; i < 30; i++) ALL.push([Math.floor(i / 3) + 1, i % 3 + 1]);
 
 function play(mode, p, seed) {
   var cfg = F.levelConfig(p[0], p[1], { mode: mode });
@@ -37,7 +37,7 @@ function setLevelPress(mode, arr) { F.LEVEL_PRESS[mode] = arr.slice(); }
 // ---- tune one mode ----------------------------------------------------------------------------
 function tune(mode, runs) {
   var target = TARGET[mode], trace = [];
-  if (!F.LEVEL_PRESS[mode] || F.LEVEL_PRESS[mode].length !== 24) setLevelPress(mode, ALL.map(function () { return 1; }));
+  if (!F.LEVEL_PRESS[mode] || F.LEVEL_PRESS[mode].length !== 30) setLevelPress(mode, ALL.map(function () { return 1; }));
   // 1. find the global press by bisection on log scale: more press, fewer wins
   var lo = Math.log(0.5), hi = Math.log(8);
   for (var it = 0; it < 7; it++) {

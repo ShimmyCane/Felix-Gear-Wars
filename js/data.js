@@ -154,6 +154,9 @@
     { n: 6, screens: 2, title: 'The Mountain Wall',   fighter: 'tank',     cols: 8, rows: 4, biome: 'mountain', boss: 'The Walking Wall', special: null },
     { n: 7, screens: 2, title: 'Tower of Stars',      fighter: 'mage',     cols: 9, rows: 4, biome: 'night',    boss: 'The Ash Wizard',  special: 'rocket' },
     { n: 8, screens: 2, title: 'The Rust Throne',     fighter: 'catapult', cols: 9, rows: 4, biome: 'fortress', boss: 'The Rust King',   special: null },
+    // Chapters 9 and 10 teach the two new units. Each side fights with the same two kinds: the key unit and one other (pool).
+    { n: 9, screens: 2, title: 'The Silent Bell',     fighter: 'monk',   pool: ['monk', 'knight'],    cols: 8, rows: 4, biome: 'plains',   boss: 'Abbot of the Bell', special: null },
+    { n: 10, screens: 2, title: 'The Bronze Shield',   fighter: 'shield', pool: ['shield', 'catapult'], cols: 9, rows: 4, biome: 'fortress', boss: 'The Bronze Bulwark', special: null },
   ];
 
   // Colours per place (the art style filters them). sky top, sky bottom, far hills, near hills, ground, accent.
@@ -226,6 +229,20 @@
       story: 'Catapults are slow but terrible. One stone can flatten a whole squad, and they are very good against walls. Send your sturdy fighters out in front, and let the stones fly over their heads.' },
     { cap: 'The Rust King!', short: 'The Rust King sits on his throne of old gears. Break through and turn the last gear!',
       story: 'The Rust King was once the Great Heart\'s first keeper, until he tried to stop it ticking. Rust has taken everything but his crown. Three times your size, he marches out of his gate. Break his army, topple his fortress, and turn the very last gear.' },
+    // chapter 9: the silent bell
+    { cap: 'Monks walk in', short: 'Monks walk into the Horde and turn one enemy for a while. Watch for turned units!',
+      story: 'At the Bell Monastery the monks walk barefoot into the Horde, each with a staff and a little brass cross. A monk who reaches an enemy can turn it, and for a little while that enemy fights for you. The Horde fight over it, and the Heart ticks on.' },
+    { cap: 'Turned and turning', short: 'A turned enemy walks home after a while. Keep the Horde busy near your monks.',
+      story: 'The turned knights are very confused. Some wander back to the Horde, and some are so pleased to be on your side that they charge the wrong way. Keep your monks near the front, where they can reach the enemy.' },
+    { cap: 'The Abbot of the Bell!', short: 'The Abbot turns two at a time, and no one can turn him. Strike him down.',
+      story: 'The Abbot of the Bell rings a huge bell, and every enemy near him is ready to turn. He can turn two at a time, but he cannot be turned himself. Hit him hard, and make your monks ring the bell back.' },
+    // chapter 10: the bronze shield
+    { cap: 'Shield casters guard', short: 'A shield caster guards the ground around it. Catapult stones that land there do nothing.',
+      story: 'The shield casters of the Bronze Hall hold their round shields up in a ring. Any stone that falls inside the ring bounces off, so the catapults waste their shots. Place a shield caster where the stones land.' },
+    { cap: 'Stones at the wall', short: 'The Horde catapults shoot at your wall. Stand a shield caster close to it.',
+      story: 'The Horde bring their catapults right up to your wall. Each stone is a little bigger than the last. A shield caster standing near the wall turns every one of them into a bang on bronze. Keep the Heart ticking.' },
+    { cap: 'The Bronze Bulwark!', short: 'The Bronze Bulwark has a wide ring of shield. Break his line with fighters.',
+      story: 'The Bronze Bulwark is a giant shield caster with a ring wider than any other. Stones cannot touch anyone inside it. Your fighters must get in close and break the line.' },
   ];
 
   // ---- tiny seeded random numbers ---------------------------------------------------------
@@ -314,7 +331,7 @@
       if (holes.some(function (h) { return h[0] === hc2 && h[1] === hr2; })) continue;
       holes.push([hc2, hr2]); extra--;
     }
-    var pool = F.unlockedFighters(ch);
+    var pool = C.pool ? C.pool.slice() : F.unlockedFighters(ch);
     var eco = F.economy(idx);
     // dormant bonus gears, far from the heart, wake when a chain reaches them
     var dorm = [];
