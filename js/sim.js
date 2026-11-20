@@ -57,7 +57,7 @@
     var cfg = this.cfg, idx = cfg.idx, es = this.es.atk, self = this;
     var rs = Math.max(0.55, Math.min(1, this.world / 2560));     // castle and tower ranges follow the length of the map
     var D = F.castleUnits(idx) * 10;               // a castle shoots as hard as 5 fighters at first and 10 at the end (a spearman does about 10 damage a second)
-    this.structs = [];
+    this.structs = []; this.raised = [];      // raised shields (fighter move): zones that block arrows and stones for a while
     function add(side, kind, x, hp, weapons, extra) {
       var k = side === 'enemy' ? es : 1;
       var s = Object.assign({ id: self.nid++, side: side, kind: kind, x: x, hp: hp, max: hp, alive: true, rebuild: 0, targetable: true, flash: 0, invuln: false,
@@ -329,7 +329,9 @@
     var types = pool.map(function (tp, n) { return { t: tp, w: 1 + n * 0.35 + (n === pool.length - 1 ? 1.2 : 0) }; });
     var list = [], got = 0, guard = 0;
     var lv = F.enemyLevel(c, cfg.idx);           // the Horde trains: its gears get stronger along the fun curve
-    while (got < E && list.length < 26 && guard++ < 80) {
+    // a wave holds up to 26 fighters at press 1; harder modes allow bigger waves (the cap grows with the square root of the press)
+    var cap = Math.round(F.WAVE_BASE * Math.max(1, Math.sqrt(F.modePress(cfg.mode, cfg.idx))));
+    while (got < E && list.length < cap && guard++ < 160) {
       var tp = F.weightedPick(this.rnd, types); list.push({ type: tp, boss: false, level: lv }); got += F.unitPower(tp) * scale * F.SM[lv - 1];
     }
     var at = 0; list.forEach(function (s2) { s2.at = at; at += 0.8 + this.rnd() * 0.9; }, this);
@@ -406,6 +408,57 @@
     return false;
   };
 
+  // ---- single-use moves -----------------------------------------------------------------------
+  // An enemy can be moved, slowed or hurt by a move only when it is not ranked above the unit (tier), not a champion and not a boss.
+  P.canMove = function (u, o) { return !o.champ && !o.boss && F.tierOf(o.type) <= F.tierOf(u.type); };
+  P.skillFoes = function (u, range) {
+    var out = [], fs = this.foes(u);
+    for (var i = 0; i < fs.length; i++) if (this.canMove(u, fs[i]) && Math.abs(fs[i].x - u.x) <= range) out.push(fs[i]);
+    return out;
+  };
+  P.useSkill = function (u, S) {
+    var self = this, i, o, list, emitName = function () { self.emit({ k: 'skill', name: S.name, x: u.x, y: u.y, side: u.side }); };
+    emitName();
+    if (u.type === 'spearman') {                                     // push the wave back
+      this.skillFoes(u, S.radius).forEach(function (f) { f.x += u.dir * S.push; f.slow = Math.max(f.slow || 0, 0.8); });
+    } else if (u.type === 'archer') {                                // a long shot at the weakest archer, mage or catapult in reach
+      list = this.skillFoes(u, S.reach); var pick = null;
+      list.forEach(function (f) { if ((f.type === 'archer' || f.type === 'mage' || f.type === 'catapult') && (!pick || f.hp < pick.hp)) pick = f; });
+      if (!pick && list.length) pick = list.reduce(function (a, b) { return a.hp <= b.hp ? a : b; });
+      if (pick) this.proj.push({ id: this.nid++, kind: 'arrow', x0: u.x, y0: u.y, x1: pick.x, y1: pick.y, t: 0, dur: Math.max(0.25, Math.abs(pick.x - u.x) / 520), side: u.side,
+        owner: { type: u.type, atk: u.atk * S.mult, magic: false }, tgt: pick.id, tgtS: 0, base: false, splash: 0, boss: false });
+    } else if (u.type === 'fighter') {                               // raise the shield: arrows and stones bounce off for 2 s
+      this.raised.push({ x: u.x, side: u.side, t: S.dur, r: S.radius });
+    } else if (u.type === 'assassin') {                              // dive through the front line
+      var x0 = u.x; u.x += u.dir * S.dist;
+      this.foes(u).forEach(function (f) { if (Math.abs(f.x - x0) <= S.dist + 20 && (f.x - x0) * u.dir >= -20 && self.canMove(u, f)) self.hurt(f, dmgFrom(u.atk * S.mult, { type: u.type }, f), u); });
+      this.emit({ k: 'slash', x: u.x, y: u.y, side: u.side, type: 'assassin' });
+    } else if (u.type === 'tank') {                                  // stomp: enemies near it crawl
+      this.skillFoes(u, S.radius).forEach(function (f) { f.slow = Math.max(f.slow || 0, S.slow); });
+      this.emit({ k: 'quake', x: u.x, y: u.y, r: S.radius, side: u.side });
+    } else if (u.type === 'mage') {                                  // fireball on the nearest group ahead
+      list = this.skillFoes(u, S.dist); if (!list.length) return;
+      o = list.reduce(function (a, b) { return Math.abs(a.x - u.x) <= Math.abs(b.x - u.x) ? a : b; });
+      var cx = o.x; this.foes(u).forEach(function (f) { if (self.canMove(u, f) && Math.abs(f.x - cx) <= S.radius) self.hurt(f, dmgFrom(u.atk * S.mult, { type: u.type, magic: true }, f), u); });
+      this.emit({ k: 'boom', x: cx, y: 0, r: S.radius, kind: 'bolt' });
+    } else if (u.type === 'catapult') {                              // three stones at three enemies
+      list = this.skillFoes(u, S.reach).sort(function (a, b) { return Math.abs(a.x - u.x) - Math.abs(b.x - u.x); }).slice(0, S.count);
+      list.forEach(function (f) { self.hurt(f, dmgFrom(u.atk * S.mult, { type: u.type }, f), u); self.emit({ k: 'boom', x: f.x, y: f.y, r: 40, kind: 'stone' }); });
+    } else if (u.type === 'monk') {                                  // bless: allies nearby heal
+      this.units.forEach(function (a) { if (a.side === u.side && !a.dead && a.state !== 'dying' && Math.abs(a.x - u.x) <= S.radius) a.hp = Math.min(a.max, a.hp + S.heal * a.max); });
+      this.emit({ k: 'heal', x: u.x, y: u.y });
+    } else if (u.type === 'shield') {                                // bulwark: a stronger ring for a while
+      u.bulwark = S.dur;
+    }
+  };
+  P.woundedNear = function (u, r) {
+    for (var i = 0; i < this.units.length; i++) { var a = this.units[i]; if (a.side === u.side && !a.dead && a.state !== 'dying' && a.hp < a.max * 0.6 && Math.abs(a.x - u.x) <= r) return true; }
+    return false;
+  };
+  P.raisedAt = function (x, side) {
+    for (var i = 0; i < this.raised.length; i++) { var z = this.raised[i]; if (z.side === side && Math.abs(z.x - x) <= z.r) return true; }
+    return false;
+  };
   // Monk: turns the nearest enemy in reach (not a champion or a boss) for a while. The turned unit fights for Felix, then goes back.
   P.monkWork = function (u, dt) {
     u.convT = (u.convT || 0) - dt; if (u.convT > 0 || u.state === 'fall' || u.state === 'getup' || u.state === 'dying') return;
@@ -426,7 +479,7 @@
   };
   // Shield caster: is there an allied shield caster close enough to a point to take the blow?
   P.shieldAt = function (x, side) {
-    for (var i = 0; i < this.units.length; i++) { var o = this.units[i], R = F.UNITS.shield.aura * (o.big ? 1.5 : 1); if (o.side === side && o.type === 'shield' && !o.dead && o.state !== 'dying' && o.state !== 'fall' && Math.abs(o.x - x) <= R) return true; }
+    for (var i = 0; i < this.units.length; i++) { var o = this.units[i], R = F.UNITS.shield.aura * (o.big ? 1.5 : 1) * (o.bulwark > 0 ? 2 : 1); if (o.side === side && o.type === 'shield' && !o.dead && o.state !== 'dying' && o.state !== 'fall' && Math.abs(o.x - x) <= R) return true; }
     return false;
   };
   // Fighters of one kind alive on that side (the cap per kind).
@@ -447,6 +500,12 @@
     if (D.power === 'heal') { u.healT -= dt; if (u.healT <= 0) { u.healT = 2.2; this.healAround(u); } }
     if (D.power === 'pierce') this.cartHit(u, dt);
     if (D.convert && u.side === 'ally') this.monkWork(u, dt);
+    if (u.bulwark > 0) u.bulwark -= dt;
+    if (u.level >= 3 && u.side === 'ally' && !u.skillUsed && F.SKILLS[u.type]) {
+      var SK = F.SKILLS[u.type];
+      var ready = u.type === 'monk' ? this.woundedNear(u, SK.radius) : this.skillFoes(u, SK.trigger).length;   // a monk blesses a hurt ally: its conversion would take the enemies
+      if (ready) { u.skillUsed = true; this.useSkill(u, SK); }
+    }
     if (u.anim === 'attack') {
       u.at += dt;
       var wind = Math.min(0.5, u.cdMax * 0.45) * 0.7;
@@ -564,10 +623,11 @@
     if (p.t < p.dur) return;
     p.done = true;
     var L = this, foes2 = p.side === 'ally' ? 'enemy' : 'ally';
+    if ((p.kind === 'arrow' || p.kind === 'bolt' || p.owner.type === 'catapult') && this.raisedAt(p.x1, foes2)) { this.emit({ k: 'shielded', x: p.x1, y: p.y1 }); return; }
     if (p.splash) {
       if (p.owner.type === 'catapult' && this.shieldAt(p.x1, foes2)) { this.emit({ k: 'shielded', x: p.x1, y: p.y1 }); return; }
       this.emit({ k: 'boom', x: p.x1, y: p.y1, r: p.splash, kind: p.kind });
-      var hits = this.units.filter(function (o) { return o.side === foes2 && o.state !== 'dying' && o.state !== 'fall' && !o.dead && Math.abs(o.x - p.x1) <= p.splash; });
+      var hits = this.units.filter(function (o) { return o.side === foes2 && o.state !== 'dying' && o.state !== 'fall' && !o.dead && Math.abs(o.x - p.x1) <= p.splash && !(p.kind === 'stone' && o.type === 'knight'); });
       hits.sort(function (a, b) { return Math.abs(a.x - p.x1) - Math.abs(b.x - p.x1); });
       // The nearest five take the full hit (less at the edge). Any others share half the blast, spread evenly, so a dense pack cannot all fall at once.
       var direct = hits.slice(0, F.SPLASH_MAX), rest = hits.slice(F.SPLASH_MAX);
@@ -579,7 +639,8 @@
       this.hurtStructsAt(p.x1, p.splash, p.owner.atk * (F.UNITS[p.owner.type].siege || 1) * (p.fromStruct ? 0.5 : 1), p.side);
     } else {
       var tu = null; for (var m = 0; m < this.units.length; m++) if (this.units[m].id === p.tgt) tu = this.units[m];
-      if (tu && !tu.dead && tu.state !== 'dying') this.hurt(tu, dmgFrom(p.owner.atk, p.owner, tu), null);
+      if (tu && p.kind === 'stone' && tu.type === 'knight' && !tu.dead && tu.state !== 'dying') { this.emit({ k: 'dodge', x: tu.x, y: tu.y }); }
+      else if (tu && !tu.dead && tu.state !== 'dying') this.hurt(tu, dmgFrom(p.owner.atk, p.owner, tu), null);
       else if (p.tgtS) this.hurtStruct(this.structById(p.tgtS), p.owner.atk * (F.UNITS[p.owner.type].siege || 1));
       this.emit({ k: 'arrowhit', x: p.x1, y: p.y1, kind: p.kind });
     }
@@ -594,7 +655,11 @@
     }
   };
   // A gear fed by a big multiplier needs more ticks for each unit: sqrt(gain / 2) times as many above 2x, so 8x is twice 2x, not four times.
-  P.gearNeed = function (g) { var base = F.ticksNeeded(g.type, g.level); return g.gmax > 2 ? base * Math.sqrt(g.gmax / 2) : base; };
+  P.gearNeed = function (g) {
+    var base = F.ticksNeeded(g.type, g.level);
+    if (g.type === 'boss') return base / F.modeRoyal(this.cfg.mode);     // the crown gear comes round faster on harder modes
+    return g.gmax > 2 ? base * Math.sqrt(g.gmax / 2) : base;
+  };
   P.produce = function (g) {
     if (!F.ticksNeeded(g.type, g.level)) return;
     var need = this.gearNeed(g);
@@ -674,6 +739,7 @@
       this.hurtStruct(this.fort, this.fort.max * 0.02 * dt);
     }
     this.updateStructs(dt);
+    for (i = this.raised.length - 1; i >= 0; i--) { this.raised[i].t -= dt; if (this.raised[i].t <= 0) this.raised.splice(i, 1); }
     for (i = 0; i < this.units.length; i++) this.updateUnit(this.units[i], dt);
     for (i = 0; i < this.proj.length; i++) this.updateProj(this.proj[i], dt);
     this.units = this.units.filter(function (u) { return !u.dead; });

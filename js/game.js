@@ -143,6 +143,8 @@
         case 'structup': ring(e.x - scroll, Art.groundY(L.bf) - 40, 60, '#fff2a0'); sparks(e.x - scroll, Art.groundY(L.bf) - 40, 12, '#fff2a0'); Au.play('merge'); break;
         case 'convert': p = [e.x - scroll, Art.groundY(L.bf) - 40]; ring(p[0], p[1], 46, '#c7f0a0'); floatText(p[0], p[1] - 40, 'Turned!', '#c7f0a0'); Au.play('merge'); break;
         case 'shielded': p = [e.x - scroll, Art.groundY(L.bf) - 30]; ring(p[0], p[1], 40, '#9fd0ff'); sparks(p[0], p[1], 10, '#cfe8ff'); Au.play('land'); break;
+        case 'skill': floatText(e.x - scroll, Art.groundY(L.bf) - 96, e.name + '!', e.side === 'ally' ? '#ffe27a' : '#ffb0a0'); ring(e.x - scroll, Art.groundY(L.bf) - 30, 36, '#ffe27a'); Au.play('horn', false); break;
+        case 'dodge': floatText(e.x - scroll, Art.groundY(L.bf) - 70, 'Dodged!', '#c7f0a0'); break;
         case 'basehit': Au.play('base'); sparks(sim.ebx - scroll + 60, Art.groundY(L.bf) - 40, 6, '#ffd090'); break;
         case 'basefall': shake = 14; Au.play('boom'); puff(sim.ebx - scroll + 80, Art.groundY(L.bf) - 50, 30, '#7a6a60', 160, 40); break;
         case 'end': ended = true; endTimer = 1.2; Au.mood('off'); Au.play(e.win ? 'win' : 'lose'); break;
@@ -502,7 +504,7 @@
   function unlocked(ch, lv) { var idx = F.levelIndex(ch, lv); if (idx === 0) return true; var pc = Math.floor((idx - 1) / 3) + 1, pl = (idx - 1) % 3 + 1; return (P.stars['c' + pc + 'l' + pl] || 0) > 0; }
   function portrait(canvas, ch, w, h, extra) {
     var c = canvas.getContext('2d'); canvas.width = w * 2; canvas.height = h * 2; c.setTransform(2, 0, 0, 2, 0, 0);
-    var C = F.CHAPTERS[ch - 1], bf = { x: 0, y: 0, w: w, h: h };
+    var C = F.chapter(ch), bf = { x: 0, y: 0, w: w, h: h };
     var oldGy = Art.groundY;
     Art.drawBattlefield(c, bf, 300 + ch * 400, C.biome, tAnim, null);
     var fighter = { type: C.fighter, side: 'ally', id: ch, level: 1, scale: 1.15, hp: 1, max: 1, speed: 40, phase: 0, anim: 'idle', cdMax: 1, at: 0, t: 0, state: 'go', dir: 1 };
@@ -541,7 +543,7 @@
     var p = document.createElement('p'); p.className = 'tier' + tier; p.textContent = tier === 0 ? st.cap : tier === 1 ? st.short : st.story; box.appendChild(p);
     var tag = $('storyTags'); tag.textContent = '';
     function chip(t) { var s = document.createElement('span'); s.className = 'chip'; s.textContent = t; tag.appendChild(s); }
-    if (!c.free) { if (c.lv === 1) chip('New fighter: ' + Art.unitName(F.CHAPTERS[c.ch - 1].fighter)); if (c.bossName) chip('Boss: ' + c.bossName); var sp = F.CHAPTERS[c.ch - 1].special; if (sp && c.lv === 1) chip('New gear: ' + F.SPECIALS[sp].name); chip('Lives ' + c.lives); chip('Coins ' + c.coins); }
+    if (!c.free) { if (c.lv === 1) chip('New fighter: ' + Art.unitName(F.chapter(c.ch).fighter)); if (c.bossName) chip('Boss: ' + c.bossName); var sp = F.CHAPTERS[c.ch - 1].special; if (sp && c.lv === 1) chip('New gear: ' + F.SPECIALS[sp].name); chip('Lives ' + c.lives); chip('Coins ' + c.coins); }
     else chip('Lives ' + c.lives);
     var tkey = ['cap', 'short', 'story'][tier], clip = window.FGW_AUDIO && FGW_AUDIO[c.id] && FGW_AUDIO[c.id][tkey];
     narr = clip ? clip.src : null; listenState(false); Au.stopSay();
