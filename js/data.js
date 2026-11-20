@@ -11,7 +11,7 @@
   F.ENEMY_BASE_X = 2400;       // the enemy fortress
   F.DROP_X0 = 130; F.DROP_SPAN = 860;   // pegboard columns map onto this stretch of ground
   F.HEART_PERIOD = 3.2;        // seconds for one turn of the heart (half the first pace; the slider scales it)
-  F.BOSS_REVS = 100;           // heart turns one boss-gear turn takes (⚙️ can change it): 1 to 100 against other gears
+  F.BOSS_REVS = 20;            // heart turns one boss-gear turn takes (⚙️ can change it): 10 to 200 against other gears
   // difficulty knobs, used by levelConfig and enemyScale (tools/balance_sim.js sweeps them)
   F.TUNE = { base: 30, perLevel: 26, perWave: 0.5, hp: 0.09, atk: 0.055, fort: 700, fortPer: 80, short: 0.6, mid: 0.85, rLow: 0.4, rPeak: 1.1, rIdx: 1.1, gearsPerLast: 0.8 };   // rLow, rPeak: wave power against Felix's power at the start and at the fun peak; rIdx: extra pressure by the last level   // short, mid: wave size on a one-screen and a one-and-a-half-screen map
   F.MAX_UNITS = 50;            // soldiers on each side at once
@@ -105,16 +105,22 @@
   F.UNIT_CAP = function (type) { var i = F.UNIT_ORDER.indexOf(type); return i < 0 ? F.MAX_UNITS : 5 * (i + 1); };
 
   // ---- champions: what a boss gear makes. Each is a different awesome unit with its own power --------------------
+  F.CHAMP_HP = 2.5;             // champions have this many times the health of their stats (they are meant to last)
+  F.CHAMP_REGEN = 0.01;        // champions recover this share of their health a second
   F.CHAMPS = {
     dragon:  { name: 'Dragon', hp: 420, atk: 36, def: 10, range: 300, speed: 70, cd: 2.4, kind: 'ranged', fly: true, power: 'breath', scale: 1.5, info: 'Flies and breathes fire on everything in front of it.' },
     king:    { name: 'King', hp: 620, atk: 30, def: 22, range: 56, speed: 50, cd: 1.0, kind: 'melee', power: 'rally', scale: 1.5, info: 'Rallies fighters near him: +30% attack and he heals them.' },
     cart:    { name: 'Felix the Cart', hp: 520, atk: 26, def: 28, range: 40, speed: 140, cd: 0.5, kind: 'melee', power: 'pierce', scale: 1.35, info: 'Rolls straight through the enemy and knocks them back.' },
     griffin: { name: 'Griffin', hp: 300, atk: 40, def: 6, range: 50, speed: 150, cd: 0.9, kind: 'melee', fly: true, hunts: true, charge: 1.6, scale: 1.35, power: 'dive', info: 'Flies over spears and dives on the back line.' },
     golem:   { name: 'Golem', hp: 1100, atk: 34, def: 40, range: 52, speed: 28, cd: 1.8, kind: 'melee', power: 'quake', scale: 1.9, info: 'Stomps the ground and slows every enemy near it.' },
+    necromancer: { name: 'Necromancer', hp: 380, atk: 16, def: 8, range: 260, speed: 34, cd: 1.5, kind: 'ranged', magic: true, power: 'raise', scale: 1.35, info: 'Raises the fighters that fall near it to fight for Felix.' },
+    blob:    { name: 'Blob', hp: 640, atk: 14, def: 16, range: 40, speed: 40, cd: 0.9, kind: 'melee', power: 'split', scale: 1.7, info: 'Splits into ten bits that latch on and drain the Horde. Five kills and the bits join into one blob again.' },
     unicorn: { name: 'Unicorn', hp: 360, atk: 20, def: 14, range: 220, speed: 70, cd: 1.4, kind: 'ranged', magic: true, power: 'heal', scale: 1.25, info: 'Heals the fighters near it with a rainbow.' },
   };
-  F.CHAMP_ORDER = ['dragon', 'king', 'cart', 'griffin', 'golem', 'unicorn'];
-  Object.keys(F.CHAMPS).forEach(function (k) { F.UNITS[k] = Object.assign({ cost: 0, tick0: 0, vs: {}, champ: true }, F.CHAMPS[k]); });
+  F.CHAMP_ORDER = ['dragon', 'king', 'cart', 'griffin', 'golem', 'unicorn', 'necromancer', 'blob'];
+  Object.keys(F.CHAMPS).forEach(function (k) { F.UNITS[k] = Object.assign({ cost: 0, tick0: 0, vs: {}, champ: true }, F.CHAMPS[k], { hp: F.CHAMPS[k].hp * F.CHAMP_HP }); });
+  // The blob's bits: small green pieces that latch on, drain and grow. Not a fighter for the tray or the army cap.
+  F.UNITS.blobling = { name: 'Blob bit', cost: 0, tick0: 0, vs: {}, hp: 45, atk: 6, def: 0, range: 30, speed: 60, cd: 0.8, kind: 'melee', drain: true, bit: true };
 
   // ---- how much power is a fighter? sqrt(effective health x damage per second) with range, splash and siege modifiers.
   var powerCache = {};
