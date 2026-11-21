@@ -26,6 +26,8 @@
     this.waveIdx = -1; this.queue = []; this.waveTimer = Infinity; this.waveCount = Infinity;
     this.leaks = 0; this.kills = 0; this.earned = 0; this.spent = 0; this.undo = [];
     this.es = F.enemyScale(cfg.idx);
+    // With each kind of enemy capped, a bigger press cannot add more of them, so it also makes them tougher: health and attack grow with the square root of the press (above 1).
+    this.es.foe = Math.sqrt(Math.max(1, F.modePress(cfg.mode, cfg.idx)));
     var qk = cfg.quick ? 0.6 : 1;                // Quick game squeezes the whole hill
     var pace = F.modePace(cfg.mode);            // medium and hard: more time between waves, a longer hill
     this.pace = pace;
@@ -352,7 +354,8 @@
   // ---- units -------------------------------------------------------------------------------
   P.makeUnit = function (side, type, level, x, boss) {
     var d = F.UNITS[type], sm = F.SM[level - 1], es = side === 'enemy' ? this.es : { hp: 1, atk: 1, def: 1 };
-    var hp = d.hp * sm * es.hp, atk = d.atk * sm * es.atk, def = d.def * (1 + 0.4 * (level - 1)) * es.def, spd = d.speed, sc = level >= F.BIG_LEVEL ? 2.8 : 1 + (level - 1) * 0.1;
+    var foe = side === 'enemy' ? (es.foe || 1) : 1;
+    var hp = d.hp * sm * es.hp * foe, atk = d.atk * sm * es.atk * foe, def = d.def * (1 + 0.4 * (level - 1)) * es.def, spd = d.speed, sc = level >= F.BIG_LEVEL ? 2.8 : 1 + (level - 1) * 0.1;
     if (d.champ) sc = d.scale * (1 + (level - 1) * 0.08);
     var special = side === 'ally' && this.specialty === type;
     if (special) { hp *= F.SPECIALTY_BONUS; atk *= F.SPECIALTY_BONUS; }
