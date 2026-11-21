@@ -20,7 +20,7 @@
   window.addEventListener('unhandledrejection', function (ev) { GW.err('Promise error', ev.reason); });
 
   // ---- settings and progress (device storage, always in try/catch) -----------------------------
-  var DEF = { mode: 'medium', showFun: 0, funPeak: 3, funFade: 7, challenge: 1, bossRevs: 20, voice: 'auto', heartSpeed: 1, theme: 'manuscript', sfx: 0.8, music: 0.5, speed: 1, quick: 0, follow: 1, reading: 'auto', showErrors: 0 };
+  var DEF = { armyMax: 25, mode: 'medium', showFun: 0, funPeak: 3, funFade: 7, challenge: 1, bossRevs: 20, voice: 'auto', heartSpeed: 1, theme: 'manuscript', sfx: 0.8, music: 0.5, speed: 1, quick: 0, follow: 1, reading: 'auto', showErrors: 0 };
   var S = Object.assign({}, DEF);
   try { var raw = JSON.parse(localStorage.getItem('fgw.settings') || '{}'); Object.keys(DEF).forEach(function (k) { if (raw[k] !== undefined) S[k] = raw[k]; }); } catch (e) { /* storage blocked */ }
   function saveSettings() { try { localStorage.setItem('fgw.settings', JSON.stringify(S)); } catch (e) { /* ignore */ } }
@@ -61,7 +61,7 @@
   var drag = null, hudBtns = [], pointers = {};
   var pendingHole = null, lastDraw = 0;     // a peg waiting for its second tap to be cleared; last time the screen was drawn
   function makeSim(c) {
-    cfg = c; sim = new F.Sim(c, { seed: (Math.random() * 1e9) | 0, heartSpeed: +S.heartSpeed || 1, specialty: Art.specialty(), funPeak: +S.funPeak || 3, funFade: +S.funFade || 7, challenge: +S.challenge || 1 });
+    cfg = c; sim = new F.Sim(c, { seed: (Math.random() * 1e9) | 0, armyMax: +S.armyMax || F.FREE_ARMY, heartSpeed: +S.heartSpeed || 1, specialty: Art.specialty(), funPeak: +S.funPeak || 3, funFade: +S.funFade || 7, challenge: +S.challenge || 1 });
     sim.speed = F.SPEEDS.indexOf(+S.speed) >= 0 ? +S.speed : 1; pendingHole = null; scroll = 0; parts = []; bolts = []; falls = {}; banner = null; selSlot = -1; selGear = 0; info = null; ended = false; endTimer = 0; paused = false;
     layout();
   }
@@ -166,7 +166,7 @@
     coinIcon(c, 196, hy + 28, 13); txt(c, String(Math.floor(sim.coins)), 216, hy + 29, 28, T.text);
     var title = cfg.free ? 'Free-for-all' : 'Chapter ' + cfg.ch + ' · Level ' + cfg.lv;
     txt(c, title, 340, hy + 17, 18, T.text, 'left', '800'); txt(c, cfg.free ? 'Wave ' + Math.max(0, sim.waveIdx + 1) + '  (best ' + P.freeBest + ')' : 'Wave ' + Math.max(0, sim.waveIdx + 1) + ' / ' + sim.waveCount, 340, hy + 39, 16, T.text, 'left', '600');
-    var army = sim.alliesAlive(), armyCap = F.armyCap(cfg.pool); txt(c, 'Army ' + army + '/' + armyCap, 450, hy + 39, 16, army >= armyCap ? Art.C('#c0392b') : T.text, 'left', '700');
+    var army = sim.alliesAlive(), armyCap = sim.armyCap(); txt(c, 'Army ' + army + '/' + armyCap, cfg.free ? 520 : 450, hy + 39, 16, army >= armyCap ? Art.C('#c0392b') : T.text, 'left', '700');
     var bx = W - 34 - 68;
     function add(id, icon, w, fill) { var b = { id: id, icon: icon, x: bx - (w - 64), y: hy + 4, w: w, h: 48, fill: fill }; bx -= w + 8; hudBtns.push(b); return b; }
     add('merge', 'merge', 64); add('home', 'home', 64); add('pause', paused ? 'play' : 'pause', 64); add('speed', 'speed', 64); add('undo', 'undo', 64);
@@ -238,9 +238,9 @@
         var fake = { type: tp.type, level: tp.level, charge: 0, need: F.ticksNeeded(tp.type, tp.level), active: false, locked: false, pulse: 0 };
         var gr = Math.min(r.w * 0.3, 34);
         c.save(); if (!can) c.globalAlpha *= 0.55;
-        Art.drawGear(c, fake, r.x + r.w / 2, r.y + 14 + gr + 6, gr, tAnim * 0.6 * (i % 2 ? -1 : 1), { star: type === Art.specialty() });
+        Art.drawGear(c, fake, r.x + r.w / 2, r.y + 14 + gr + 6, gr, tAnim * 0.6 * (i % 2 ? -1 : 1), { star: tp.type === Art.specialty() });
         c.restore();
-        var nm = tp.type === 'mult' ? 'Multiplier ×' + F.MULTV[tp.level - 1] : Art.unitName(type); txt(c, nm, r.x + r.w / 2, r.y + r.h - 44, 15, T.text, 'center', '800');
+        var nm = tp.type === 'mult' ? 'Multiplier ×' + F.MULTV[tp.level - 1] : Art.unitName(tp.type); txt(c, nm, r.x + r.w / 2, r.y + r.h - 44, 15, T.text, 'center', '800');
         coinIcon(c, r.x + r.w / 2 - 20, r.y + r.h - 20, 10); txt(c, String(cost), r.x + r.w / 2 - 6, r.y + r.h - 19, 20, can ? T.text : Art.C('#c0392b'), 'left', '900');
       }
       c.globalAlpha = 1;
@@ -599,6 +599,7 @@
     var fp = $('funPeak'); if (fp) { fp.value = S.funPeak; $('funFade').value = S.funFade; $('challenge').value = S.challenge; if (GW.applyFun) GW.applyFun(); }
     var br2 = $('bossRevs'); if (br2) { br2.value = S.bossRevs; $('bossRevsVal').textContent = '1 : ' + S.bossRevs; }
     F.BOSS_REVS = +S.bossRevs || 20;
+    var am = $('armyMax'); if (am) { am.value = S.armyMax; $('armyMaxVal').textContent = S.armyMax; }
     var hs = $('heartSpeed'); if (hs) { hs.value = S.heartSpeed; $('heartSpeedVal').textContent = '×' + (+S.heartSpeed).toFixed(2).replace(/0$/, ''); }
     Art.setTheme(S.theme); Au.setVolumes(+S.sfx, +S.music);
     if (sim) sim.specialty = Art.specialty();
@@ -628,6 +629,8 @@
     GW.applyFun = applyFun;
     var br = $('bossRevs');
     br.addEventListener('input', function () { S.bossRevs = +br.value; F.BOSS_REVS = S.bossRevs; saveSettings(); $('bossRevsVal').textContent = '1 : ' + S.bossRevs; });
+    var am2 = $('armyMax');
+    am2.addEventListener('input', function () { S.armyMax = +am2.value; saveSettings(); $('armyMaxVal').textContent = S.armyMax; if (sim && cfg.free) { sim.maxArmy = S.armyMax; sim.maxEnemy = Math.ceil(S.armyMax * F.freeFoe(cfg.mode)); } });
     var hs = $('heartSpeed');
     hs.addEventListener('input', function () { S.heartSpeed = +hs.value; saveSettings(); $('heartSpeedVal').textContent = '×' + (+hs.value).toFixed(2).replace(/0$/, ''); if (sim) sim.heartPeriod = F.HEART_PERIOD / S.heartSpeed; });
     $('showErrors').addEventListener('change', function () { S.showErrors = this.checked ? 1 : 0; saveSettings(); renderErrors(); });
