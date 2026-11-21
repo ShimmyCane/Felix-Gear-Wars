@@ -166,7 +166,7 @@
     coinIcon(c, 196, hy + 28, 13); txt(c, String(Math.floor(sim.coins)), 216, hy + 29, 28, T.text);
     var title = cfg.free ? 'Free-for-all' : 'Chapter ' + cfg.ch + ' · Level ' + cfg.lv;
     txt(c, title, 340, hy + 17, 18, T.text, 'left', '800'); txt(c, cfg.free ? 'Wave ' + Math.max(0, sim.waveIdx + 1) + '  (best ' + P.freeBest + ')' : 'Wave ' + Math.max(0, sim.waveIdx + 1) + ' / ' + sim.waveCount, 340, hy + 39, 16, T.text, 'left', '600');
-    var army = sim.alliesAlive(); txt(c, 'Army ' + army + '/' + F.MAX_UNITS, 450, hy + 39, 16, army >= F.MAX_UNITS ? Art.C('#c0392b') : T.text, 'left', '700');
+    var army = sim.alliesAlive(), armyCap = F.armyCap(cfg.pool); txt(c, 'Army ' + army + '/' + armyCap, 450, hy + 39, 16, army >= armyCap ? Art.C('#c0392b') : T.text, 'left', '700');
     var bx = W - 34 - 68;
     function add(id, icon, w, fill) { var b = { id: id, icon: icon, x: bx - (w - 64), y: hy + 4, w: w, h: 48, fill: fill }; bx -= w + 8; hudBtns.push(b); return b; }
     add('merge', 'merge', 64); add('home', 'home', 64); add('pause', paused ? 'play' : 'pause', 64); add('speed', 'speed', 64); add('undo', 'undo', 64);
@@ -218,6 +218,7 @@
       var g = sim.gears[i]; if (drag && drag.kind === 'gear' && drag.gear === g && drag.moved) continue;
       g.need = F.ticksNeeded(g.type, g.level);
       Art.drawGear(c, g, cellX(g.c), cellY(g.r), cs, gearAngle(g), { glow: g.ready || (selGear === g.id), star: g.type === Art.specialty() });
+      if (F.UNITS[g.type] && !F.UNITS[g.type].champ && sim.typeCount(g.type, 'ally') >= F.UNIT_CAP(g.type)) txt(c, 'MAX ' + F.UNIT_CAP(g.type), cellX(g.c), cellY(g.r) - cs * 0.95, 13, Art.C('#c0392b'), 'center', '900');
     }
   }
   function cardRects() {

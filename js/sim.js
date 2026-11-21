@@ -15,7 +15,8 @@
     this.t = 0; this.acc = 0; this.speed = 1; this.nid = 1; this.events = [];
     this.cols = cfg.board.cols; this.rows = cfg.board.rows;
     this.heart = { c: cfg.board.heart.c, r: cfg.board.heart.r };
-    this.heartA = -0.35;                       // total angle turned (radians); gears fill smoothly as it turns
+    this.heartA = -0.35;                       // the angle shown (radians): the heart snaps a quarter turn on each tick and the gears fill only then
+    this.ticks = 0; this.tickAcc = 0;
     this.world = cfg.world || F.WORLD; this.ebx = this.world - 160;   // width of the battlefield and the enemy fortress
     this.heartPeriod = o.heartPeriod || F.HEART_PERIOD / (o.heartSpeed || 1);
     this.holes = {}; cfg.board.holes.forEach(function (h) { this.holes[h[0] + ',' + h[1]] = true; }, this);
@@ -781,14 +782,16 @@
     var i;
     this.t += dt;
     // the heart turns smoothly (even before the first wave, so Felix sees it work) and the gears fill as it turns
-    var dA = dt * 2 * Math.PI / this.heartPeriod; this.heartA += dA;
-    this.fillGears(dA / (Math.PI / 2));
+    // the heart ticks once per quarter turn: the gears get their ticks then, not continuously
+    this.tickAcc += dt * 4 / this.heartPeriod;
+    while (this.tickAcc >= 1) { this.tickAcc -= 1; this.ticks++; this.fillGears(1); this.emit({ k: 'tick' }); }
+    this.heartA += (this.ticks * Math.PI / 2 - 0.35 - this.heartA) * Math.min(1, dt * 16);
     if (this.status === 'running') {
       this.waveTimer -= dt;
       if (this.waveTimer <= 0 && this.waveIdx + 1 < this.waveCount) this.launchWave();
       for (i = this.queue.length - 1; i >= 0; i--) {
         var q = this.queue[i];
-        if (this.t >= q.at && this.enemiesAlive() < F.MAX_UNITS) {
+        if (this.t >= q.at && this.enemiesAlive() < F.MAX_UNITS && (q.boss || this.typeCount(q.type, 'enemy') < F.UNIT_CAP(q.type))) {
           var e = this.makeUnit('enemy', q.type, q.level || 1, this.ebx + 20, q.boss);
           e.state = 'go'; e.anim = 'walk'; this.queue.splice(i, 1);
           this.emit({ k: 'enemy', unit: e.id, boss: q.boss });

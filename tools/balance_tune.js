@@ -1,7 +1,7 @@
 // Felix Gear Wars: self-balancing difficulty. It plays levels with the bot, measures how often the bot wins, moves the press
 // until the win rate is on target, then nudges each level, and finally checks the result on seeds it has not used.
 //
-//   node tools/balance_tune.js tune <medium|hard> [runs]   prints JSON {press, levelPress, trace} for that mode (about 20 min)
+//   node tools/balance_tune.js tune <easy|medium|hard> [runs]   prints JSON {press, levelPress, trace} for that mode (30 to 60 min)
 //   node tools/balance_tune.js apply <file.json>...        writes the tuned block of js/data.js from those results
 //   node tools/balance_tune.js verify [runs]                invariants and win-rate bands on fresh seeds; exits 1 on failure
 //
@@ -102,6 +102,17 @@ function verify(runs) {
   check(F.MODES.hard.pace > F.MODES.medium.pace && F.MODES.medium.pace >= F.MODES.easy.pace, 'harder modes go slower');
   var hs = new F.Sim(F.levelConfig(2, 2, { mode: 'hard' }), { noEvents: true, seed: 2 }), hc0 = hs.holeCost(); hs.holesCleared = 1;
   check(F.HOLE_GROWTH > 1 && hs.holeCost() > hc0, 'clearing a peg costs more each time (' + hc0 + ' then ' + hs.holeCost() + ')');
+  // the heart ticks: a gear's charge changes only when the heart ticks
+  var ts = new F.Sim(F.levelConfig(1, 2, { mode: 'easy' }), { noEvents: true, seed: 3 }); ts.tray = ['spearman', 'spearman', 'spearman']; ts.coins = 500; ts.buy(0, ts.heart.c + 1, ts.heart.r); ts.recompute();
+  var tg = ts.gears[0], tprev = tg.charge, tlast = ts.ticks, between = 0;
+  for (var ti = 0; ti < 30 * 10; ti++) { ts.step(1 / 30); if (tg.charge !== tprev) { if (ts.ticks === tlast) between++; tprev = tg.charge; } tlast = ts.ticks; }
+  check(ts.ticks > 5 && between === 0, 'gears fill only when the heart ticks (' + ts.ticks + ' ticks, ' + between + ' changes between)');
+  // the opponents have the same cap per kind: a wave of twenty spearmen never has more than five on the field
+  var es = new F.Sim(F.levelConfig(1, 2, { mode: 'easy' }), { noEvents: true, seed: 4 }); es.start(); es.waveTimer = Infinity;
+  for (var ei = 0; ei < 20; ei++) es.queue.push({ at: 0, type: 'spearman', boss: false, level: 1 });
+  var epeak = 0; for (var ej = 0; ej < 30 * 6; ej++) { es.step(1 / 30); epeak = Math.max(epeak, es.typeCount('spearman', 'enemy')); }
+  check(epeak <= F.UNIT_CAP('spearman') && epeak > 0, 'opponents are capped per kind too (peak ' + epeak + ' of ' + F.UNIT_CAP('spearman') + ')');
+  check(F.armyCap(F.levelConfig(1, 1).pool) === 5 && F.armyCap(F.UNIT_ORDER) === F.MAX_UNITS, 'the army cap shown is the kinds added up (5 in chapter 1)');
   check(F.MODES.easy.lives >= F.MODES.medium.lives && F.MODES.medium.lives >= F.MODES.hard.lives, 'lives: easy >= medium >= hard');
   check(F.modePress('easy', 4) === F.MODE_PRESS.easy && F.MODE_PRESS.easy <= F.MODE_PRESS.medium && F.MODE_PRESS.medium <= F.MODE_PRESS.hard, 'press: easy <= medium <= hard');
   // win-rate bands on seeds the tuner did not use (base 9000+)
@@ -119,7 +130,7 @@ function verify(runs) {
 
 var cmd = process.argv[2], arg = process.argv[3], runs = +(process.argv[4] || 6);
 if (cmd === 'tune') {
-  if (!TARGET[arg] || arg === 'easy') { console.error('tune medium or hard'); process.exit(2); }
+  if (!TARGET[arg]) { console.error('tune easy, medium or hard'); process.exit(2); }
   console.log(JSON.stringify(tune(arg, runs)));
 } else if (cmd === 'apply') {
   apply(process.argv.slice(3));

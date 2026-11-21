@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var F = globalThis.FGW = globalThis.FGW || {};
-  F.version = '0.2.0';
+  F.version = '0.3.0';
 
   // ---- the world --------------------------------------------------------------------------
   F.VIEW_W = 1280;             // logical width of the screen
@@ -106,6 +106,8 @@
     monk:     { name: 'Bless', trigger: 160, radius: 240, heal: 0.4 },                // allies nearby heal 40% of their health
     shield:   { name: 'Bulwark', trigger: 160, dur: 4 },                              // its ring is twice as strong for 4 s
   };
+  // The most fighters a level's army can reach: the caps of its kinds added up, never more than the overall limit.
+  F.armyCap = function (pool) { var t = 0; pool.forEach(function (p) { t += F.UNIT_CAP(p); }); return Math.min(F.MAX_UNITS, t); };
   F.UNIT_CAP = function (type) { var i = F.UNIT_ORDER.indexOf(type); return i < 0 ? F.MAX_UNITS : 5 * (i + 1); };
 
   // ---- champions: what a boss gear makes. Each is a different awesome unit with its own power --------------------

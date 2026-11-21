@@ -2,6 +2,15 @@
 
 Newest first. The version number is `F.version` in `js/data.js`; the balance numbers are in `research/balance.md`.
 
+## 0.3.0
+
+From the notes in the family notes table (versions 0.1.0 and 0.2.0).
+
+- **The heart ticks.** Gears fill in whole ticks, only when the heart ticks, and the heart and gears snap a quarter turn each time (they no longer turn continuously).
+- **Army size is clear.** The HUD shows the army cap for the level (the caps of its kinds added up, 5 in chapter 1), and a gear whose kind is at its cap shows `MAX n`.
+- **Opponents have the same limit.** Each kind of enemy is capped like each kind of fighter (bosses and champions are exempt).
+- **Re-tuned difficulty** for easy, medium and hard, since the caps and ticks change the balance.
+
 ## 0.2.0
 
 Book 1 grows and gets harder. Changes since 0.1.0, grouped by pull request.
