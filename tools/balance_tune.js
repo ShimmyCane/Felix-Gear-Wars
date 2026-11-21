@@ -91,8 +91,8 @@ function verify(runs) {
   check(F.refreshCost(0) === 5 && F.refreshCost(5) === 10 && F.refreshCost(9) === 10, 'refresh costs 5 plus 5 per five gears');
   check(F.trayParts('mult@2').level === 2 && F.trayParts('spearman').level === 1, 'tray parts read mult@N');
   check([1, 2].every(function (c) { return F.multTiers(c).length === 0; }) && F.multTiers(3).join() === '1' && F.multTiers(8).join() === '1,2,3', 'multipliers join the tray by chapter');
-  var lvls = [1, 2, 3, 4, 5, 6, 7].map(function (c) { return F.enemyLevel(c / 10, 20); });
-  check(lvls.every(function (v, i, a) { return i === 0 || v >= a[i - 1]; }) && lvls[0] === 1 && lvls[6] === 3, 'enemy levels rise along the fun curve');
+  var lvls = [0, 0.5, 0.7, 0.95].map(function (c) { return F.enemyLevel(c, 20); });
+  check(lvls.join() === '1,2,2,3', 'enemy levels rise along the fun curve (' + lvls.join(',') + ')');
   var sim1 = new F.Sim(F.levelConfig(1, 1), { noEvents: true, seed: 3 }), sim4 = new F.Sim(F.levelConfig(2, 1), { noEvents: true, seed: 3 });
   check(sim1.fort.weapons.every(function (w) { return w.kind !== 'stone'; }), 'chapter 1 castle has no stones');
   check(sim4.fort.weapons.some(function (w) { return w.kind === 'stone'; }), 'chapter 2 castle has stones');

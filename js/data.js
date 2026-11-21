@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var F = globalThis.FGW = globalThis.FGW || {};
-  F.version = '0.1.0';
+  F.version = '0.2.0';
 
   // ---- the world --------------------------------------------------------------------------
   F.VIEW_W = 1280;             // logical width of the screen
@@ -44,9 +44,13 @@
   F.MODES = { easy: { name: 'Easy', lives: 1, pace: 1, holes: 0 }, medium: { name: 'Medium', lives: 0.9, pace: 1.25, holes: 2 }, hard: { name: 'Hard', lives: 0.75, pace: 1.5, holes: 4 } };
   F.modePace = function (mode) { return F.MODES[F.modeOf(mode)].pace; };
   var ONES = []; for (var oi = 0; oi < 24; oi++) ONES.push(1);
-  // tuned:begin
-  F.MODE_PRESS = { easy: 1, medium: 1.6, hard: 2.6 };
-  F.LEVEL_PRESS = { easy: ONES, medium: ONES, hard: ONES };
+  // tuned:begin (written by tools/balance_tune.js apply; re-tune after changing the rules)
+  F.MODE_PRESS = { easy: 1, medium: 1.593, hard: 7.914 };
+  F.LEVEL_PRESS = {
+    easy: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    medium: [1.331, 1.1, 0.778, 0.92, 0.846, 1.21, 0.92, 0.846, 1.1, 1.21, 1.331, 1.21, 1.331, 0.92, 1, 0.92, 1.331, 1, 1.331, 1.331, 1.21, 0.92, 1.331, 1.331, 1.331, 1.331, 1.21, 1.331, 1.331, 1.331],
+    hard: [0.778, 0.778, 0.778, 0.778, 0.778, 0.778, 0.846, 0.778, 0.92, 0.778, 0.778, 0.846, 1.331, 1.21, 1.1, 0.778, 0.931, 1.012, 1.21, 1.1, 1.21, 1.1, 0.778, 1.1, 1.331, 1.331, 1.21, 1.331, 1.331, 1.331]
+  };
   // tuned:end
   // Removable pegs: tap a blocked peg to see its price, tap again to pay. Each one cleared costs more than the last.
   F.HOLE_BASE = 20; F.HOLE_GROWTH = 2;
