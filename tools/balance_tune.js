@@ -92,7 +92,7 @@ function verify(runs) {
   check(F.trayParts('mult@2').level === 2 && F.trayParts('spearman').level === 1, 'tray parts read mult@N');
   check([1, 2].every(function (c) { return F.multTiers(c).length === 0; }) && F.multTiers(3).join() === '1' && F.multTiers(8).join() === '1,2,3', 'multipliers join the tray by chapter');
   var lvls = [0, 0.5, 0.7, 0.95].map(function (c) { return F.enemyLevel(c, 20); });
-  check(lvls.join() === '1,2,2,3', 'enemy levels rise along the fun curve (' + lvls.join(',') + ')');
+  check(lvls.join() === '1,1,2,3', 'enemy levels rise along the fun curve: level 2 above 0.6, level 3 above 0.92 (' + lvls.join(',') + ')');
   var sim1 = new F.Sim(F.levelConfig(1, 1), { noEvents: true, seed: 3 }), sim4 = new F.Sim(F.levelConfig(2, 1), { noEvents: true, seed: 3 });
   check(sim1.fort.weapons.every(function (w) { return w.kind !== 'stone'; }), 'chapter 1 castle has no stones');
   check(sim4.fort.weapons.some(function (w) { return w.kind === 'stone'; }), 'chapter 2 castle has stones');
