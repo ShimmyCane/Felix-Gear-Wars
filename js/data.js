@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var F = globalThis.FGW = globalThis.FGW || {};
-  F.version = '0.1.0';
+  F.version = '0.2.0';
 
   // ---- the world --------------------------------------------------------------------------
   F.VIEW_W = 1280;             // logical width of the screen
