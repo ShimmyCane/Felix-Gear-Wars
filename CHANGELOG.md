@@ -2,6 +2,11 @@
 
 Newest first. The version number is `F.version` in `js/data.js`; the balance numbers are in `research/balance.md`.
 
+## 0.9.0
+
+- **Book 3 is map first.** The battlefield fills the screen. Building is behind a Build button. Tap a unit to select it, then choose Move (tap the map; the lane follows the tap), Attach (tap a friendly unit to follow and fight beside it), Hide (retreat behind the castle, where enemies cannot target the unit) or Clear. Units without orders fight on their own.
+- Book 3 press values re-tuned for the five new characters.
+
 ## 0.8.0
 
 - **Book 3 introduces five new characters:** the freezer (slows the nearest three enemies in its lanes every five seconds; from level three it chooses the most dangerous), the summoner (summons a stoneguard every ten seconds, two at a time), the stoneguard (a defensive creature that keeps summoning after its summoner falls; at level four or more it traps the enemies near it when it falls), the builder (places spike walls ahead in its lane), and the flanker (flanks again after 1.5 seconds). Three new buildings: foundry, ice house, shrine.

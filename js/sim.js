@@ -465,6 +465,7 @@
     for (i = 0; i < foes.length; i++) {
       o = foes[i]; dx = Math.abs(o.x - u.x);
       if (this.lanes > 1 && Math.abs(o.lane - u.lane) > (D.kind === 'ranged' ? 1 : 0)) continue;   // book 3: fighters reach their own lane, archers the next one
+      if (o.hidden) continue;                                     // a hidden unit cannot be targeted
       if (o.fly && D.kind === 'melee' && !u.fly) continue;       // spears cannot reach a dragon
       if (u.minRange && dx < u.minRange) continue;
       var reach = D.hunts ? 480 : Math.max(u.range, 150);
@@ -589,6 +590,31 @@
         if (Math.abs(o.x - sp.x) <= F.B3_SPIKE.radius) self.hurt(o, F.B3_SPIKE.dps * dt, null);
       }, this);
     }
+  };
+
+  // ---- commands in book 3: a unit moves, follows another unit, or hides behind the castle; otherwise it fights on its own
+  P.order = function (u, type, o) {
+    if (!u || u.side !== 'ally' || u.dead) return 'none';
+    u.hidden = false;
+    if (type === 'clear') { u.order = null; return 'ok'; }
+    if (type === 'hide') { u.order = { type: 'hide', x: 150, lane: u.lane }; return 'ok'; }
+    if (type === 'move') { u.order = { type: 'move', x: Math.max(120, Math.min(this.world - 60, o.x)), lane: o.lane }; return 'ok'; }
+    if (type === 'follow') { var t = this.units.filter(function (x) { return x.id === o.id && !x.dead && x.id !== u.id; })[0]; if (!t) return 'none'; u.order = { type: 'follow', id: t.id, x: t.x, lane: t.lane }; return 'ok'; }
+    return 'none';
+  };
+  P.runOrder = function (u, dt) {
+    var o = u.order;
+    if (o.type === 'follow') { var t = this.units.filter(function (x) { return x.id === o.id && !x.dead && x.state !== 'dying'; })[0]; if (!t) { u.order = null; return false; } o.x = t.x; o.lane = t.lane; }
+    u.lane = o.lane;
+    var dx = o.x - u.x, reach = o.type === 'follow' ? 70 : 6;
+    if (Math.abs(dx) <= reach) {
+      if (o.type === 'hide') { u.hidden = true; u.anim = 'idle'; return true; }
+      if (o.type === 'move') { u.order = null; return false; }
+      return false;                                              // following: fights with the unit it is attached to
+    }
+    var step = Math.min(Math.abs(dx), u.speed * dt * (u.slow > 0 ? 0.4 : 1)) * Math.sign(dx);
+    u.x += step; u.dir = Math.sign(dx) || u.dir; u.anim = 'walk';
+    return true;
   };
 
   // ---- book 2: buildings, resources and unit queues ---------------------------------------------------------------
@@ -726,6 +752,7 @@
     u.t += dt; u.cd -= dt; if (u.flash > 0) u.flash -= dt;
     if (u.converted > 0) { u.converted -= dt; if (u.converted <= 0) { u.converted = 0; u.side = 'enemy'; u.dir = -1; this.emit({ k: 'unconvert', x: u.x, y: u.y }); } }
     if (u.state === 'dying') { if (u.t > 0.75) u.dead = true; return; }
+    if (u.order && u.side === 'ally' && this.runOrder(u, dt)) return;      // a commanded unit moves on its own orders
     if (u.state === 'fall') { if (u.t >= 0.55) { u.state = 'getup'; u.t = 0; this.emit({ k: 'land', x: u.x, y: u.y, side: u.side }); } return; }
     if (u.state === 'getup') { u.anim = 'getup'; if (u.t >= 0.45) { u.state = 'go'; u.t = 0; } return; }
     var D = F.UNITS[u.type];

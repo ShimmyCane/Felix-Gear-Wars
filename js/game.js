@@ -40,12 +40,14 @@
     layout();
   }
   var L = {};
+  var b3Build = false, b3Mode = null;     // book 3: the build view is closed by default; a command mode (move or attach) waits for a tap
   function layout() {
     var cols = sim ? sim.cols : 7, rows = sim ? sim.rows : 3;
     var cs = Math.min(80, Math.floor((H * 0.4 - 24) / rows)); cs = Math.max(52, cs);
     L.cs = cs; L.bx = 24; L.by = 84; L.bw = cols * cs + 24; L.bh = rows * cs + 24;
     var tx = L.bx + L.bw + 16; L.tray = { x: tx, y: L.by, w: W - 22 - tx, h: L.bh };
     var top = L.by + L.bh + 12; L.bf = { x: 0, y: top, w: W, h: H - top };
+    if (sim && sim.book === 3 && !b3Build) L.bf = { x: 0, y: L.by, w: W, h: H - L.by };   // book 3: the map is the screen
     L.mini = { x: 360, y: H - 38, w: 560, h: 20 };
   }
   function cellX(c) { return L.bx + 12 + c * L.cs + L.cs / 2; }
@@ -182,7 +184,7 @@
     if (sim.hasBuildings) {
       txt(c, 'food ' + Math.floor(sim.res.food) + '   wood ' + Math.floor(sim.res.wood) + '   runes ' + Math.floor(sim.res.runes), 560, hy + 17, 16, T.text, 'left', '800');
       var tr = sim.buildings.filter(function (x) { return x.queue.length; }).slice(0, 3).map(function (x) { return F.B2_BUILDINGS[x.type].name + ' ' + Math.ceil(x.queue[0].left) + 's'; });
-      txt(c, tr.length ? 'Training: ' + tr.join('  ·  ') : 'Tap a building to train units', 560, hy + 39, 14, T.text, 'left', '600');
+      txt(c, tr.length ? 'Training: ' + tr.join('  ·  ') : (sim.book === 3 ? 'Build, then train from a building' : 'Tap a building to train units'), 560, hy + 39, 14, T.text, 'left', '600');
     }
     if (sim.status === 'running' && sim.waveIdx + 1 < sim.waveCount && isFinite(sim.waveTimer) && !sim.hasBuildings) {
       var wt = Math.max(0, sim.waveTimer), fr = 1 - Math.min(1, wt / sim.gap);
@@ -380,9 +382,9 @@
     if (sim) {
       hudBtns = [];
       if (sim.book === 3) drawTopBattle(c); else drawBattle(c);
-      if (sim.hasBuildings) { drawB2Board(c); drawB2Tray(c); } else { drawBoard(c); drawTray(c); }
+      if (sim.book === 3 && !b3Build) { /* the map is the screen */ } else if (sim.hasBuildings) { drawB2Board(c); drawB2Tray(c); } else { drawBoard(c); drawTray(c); }
       drawHUD(c); drawMini(c); if (+S.showFun) drawFun(c);
-      if (sim.hasBuildings) drawB2Popup(c);
+      if (sim.hasBuildings && (sim.book !== 3 || b3Build)) drawB2Popup(c);
       if (drag && drag.moved) {
         if (drag.kind === 'gear') { var g = drag.gear; g.need = F.ticksNeeded(g.type, g.level); Art.drawGear(c, g, drag.x, drag.y - 12, L.cs / 2 * 1.08, gearAngle(g), { glow: true }); }
         else if (drag.kind === 'card') { var ty = sim.tray[drag.slot]; if (ty) { var tp = F.trayParts(ty); Art.drawGear(c, { type: tp.type, level: tp.level, charge: 0, need: F.ticksNeeded(tp.type, tp.level), active: false, locked: false, pulse: 0 }, drag.x, drag.y - 12, L.cs / 2 * 1.08, tAnim, { glow: true }); } }
@@ -515,10 +517,6 @@
   var b3Sel = 0;
   function laneH() { return (L.bf.h - 20) / 3; }
   function laneY(l) { return L.bf.y + 10 + l * laneH() + laneH() / 2; }
-  function b3FlankRects(u) {
-    var y = laneY(u.lane), sx = u.x - scroll, hh = laneH();
-    return { up: { x: sx - 22, y: y - hh / 2 + 2, w: 44, h: 20 }, down: { x: sx - 22, y: y + hh / 2 - 22, w: 44, h: 20 } };
-  }
   function drawTopBattle(c) {
     var T = Art.theme, hh = laneH(), i, l;
     c.fillStyle = Art.C(T.panel2); c.fillRect(0, L.bf.y, W, L.bf.h);
@@ -550,22 +548,52 @@
       var f = Math.min(1, p.t / Math.max(0.01, p.dur)), px = p.x0 + (p.x1 - p.x0) * f - scroll;
       c.beginPath(); c.arc(px, laneY(1), 3, 0, TAU); c.fillStyle = p.side === 'ally' ? '#9fd0ff' : '#ffb0a0'; c.fill();
     });
-    if (b3Sel) { var su = sim.units.filter(function (u) { return u.id === b3Sel && !u.dead; })[0]; if (su && su.side === 'ally') {
-      var fr = b3FlankRects(su);
-      panel(c, fr.up.x, fr.up.y, fr.up.w, fr.up.h, Art.C(T.btn), 8); txt(c, '▲ lane', fr.up.x + fr.up.w / 2, fr.up.y + 14, 11, T.text, 'center', '800');
-      panel(c, fr.down.x, fr.down.y, fr.down.w, fr.down.h, Art.C(T.btn), 8); txt(c, '▼ lane', fr.down.x + fr.down.w / 2, fr.down.y + 14, 11, T.text, 'center', '800');
-    } else b3Sel = 0; }
+    b3Buttons(c);
   }
+  function b3Rects() {
+    var y = H - 84, out = {};
+    out.move = { x: 24, y: y, w: 118, h: 36 }; out.attach = { x: 152, y: y, w: 118, h: 36 };
+    out.hide = { x: 280, y: y, w: 118, h: 36 }; out.clear = { x: 408, y: y, w: 118, h: 36 };
+    out.build = { x: W - 150, y: L.bf.y + 6, w: 128, h: 34 };
+    return out;
+  }
+  function b3Buttons(c) {
+    var T = Art.theme, R = b3Rects(), k;
+    panel(c, R.build.x, R.build.y, R.build.w, R.build.h, Art.C(b3Build ? T.gold2 : T.btn), 12);
+    txt(c, b3Build ? 'Close build' : 'Build', R.build.x + R.build.w / 2, R.build.y + 22, 14, T.text, 'center', '800');
+    var su = b3Sel ? sim.units.filter(function (u) { return u.id === b3Sel && !u.dead; })[0] : null;
+    if (!su || su.side !== 'ally') { b3Sel = 0; return; }
+    txt(c, Art.unitName(su.type) + (su.hidden ? ' (hidden)' : su.order ? ' (' + su.order.type + ')' : ''), 24, H - 96, 14, Art.ink, 'left', '800');
+    [['move', 'Move'], ['attach', 'Attach'], ['hide', 'Hide'], ['clear', 'Clear']].forEach(function (p) {
+      var r = R[p[0]], on = b3Mode === p[0];
+      panel(c, r.x, r.y, r.w, r.h, Art.C(on ? T.gold2 : T.btn), 12);
+      txt(c, p[1], r.x + r.w / 2, r.y + 23, 15, T.text, 'center', '800');
+    });
+    if (b3Mode === 'move') txt(c, 'Tap the map to move there (the lane follows the tap)', 24, H - 52, 13, T.text, 'left', '700');
+    if (b3Mode === 'attach') txt(c, 'Tap a friendly unit to follow it', 24, H - 52, 13, T.text, 'left', '700');
+  }
+
   function b3Tap(x, y) {
-    if (b3Sel) {
-      var su = sim.units.filter(function (u) { return u.id === b3Sel && !u.dead; })[0];
-      if (su) { var fr = b3FlankRects(su); var res = null;
-        if (hit(fr.up, x, y)) res = sim.flank(su, -1); else if (hit(fr.down, x, y)) res = sim.flank(su, 1);
-        if (res) { say(res === 'ok' ? 'Flanked into the next lane' : res === 'cool' ? 'Flank is cooling down' : 'No lane that way'); if (res === 'ok') Au.play('tap'); return; } }
+    var R = b3Rects(), su = b3Sel ? sim.units.filter(function (u) { return u.id === b3Sel && !u.dead; })[0] : null;
+    if (hit(R.build, x, y)) { b3Build = !b3Build; layout(); Au.play('tap'); return; }
+    if (su) {
+      if (hit(R.move, x, y)) { b3Mode = 'move'; Au.play('tap'); return; }
+      if (hit(R.attach, x, y)) { b3Mode = 'attach'; Au.play('tap'); return; }
+      if (hit(R.hide, x, y)) { sim.order(su, 'hide'); b3Mode = null; say(Art.unitName(su.type) + ' hides behind the castle'); Au.play('tap'); return; }
+      if (hit(R.clear, x, y)) { sim.order(su, 'clear'); b3Mode = null; Au.play('tap'); return; }
+      if (b3Mode === 'move') {
+        var lane = Math.max(0, Math.min(2, Math.floor((y - L.bf.y - 10) / laneH())));
+        sim.order(su, 'move', { x: x + scroll, lane: lane }); b3Mode = null; Au.play('tap'); return;
+      }
+      if (b3Mode === 'attach') {
+        var other = null, bd = 40; sim.units.forEach(function (u) { if (u.side !== 'ally' || u.dead || u.id === su.id) return; var d = Math.hypot(u.x - scroll - x, laneY(u.lane) - y); if (d < bd) { bd = d; other = u; } });
+        if (other) { sim.order(su, 'follow', { id: other.id }); say(Art.unitName(su.type) + ' follows ' + Art.unitName(other.type)); Au.play('tap'); }
+        b3Mode = null; return;
+      }
     }
-    var best = null, bd = 34;
-    sim.units.forEach(function (u) { if (u.side !== 'ally' || u.dead) return; var d = Math.hypot(u.x - scroll - x, laneY(u.lane) - y); if (d < bd) { bd = d; best = u; } });
-    b3Sel = best ? best.id : 0; if (best) Au.play('tap');
+    var best = null, bd2 = 34;
+    sim.units.forEach(function (u) { if (u.side !== 'ally' || u.dead) return; var d = Math.hypot(u.x - scroll - x, laneY(u.lane) - y); if (d < bd2) { bd2 = d; best = u; } });
+    b3Sel = best ? best.id : 0; b3Mode = null; if (best) Au.play('tap');
   }
   function b2Tap(x, y) {
     if (b2Bld) {

@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var F = globalThis.FGW = globalThis.FGW || {};
-  F.version = '0.8.0';
+  F.version = '0.9.0';
 
   // ---- the world --------------------------------------------------------------------------
   F.VIEW_W = 1280;             // logical width of the screen
@@ -71,9 +71,13 @@
     hard: [1.1, 1, 0.778, 1.1, 1.113, 1, 1.1, 1.1, 1.1, 0.846, 0.92, 0.92, 0.778, 0.778, 0.778, 0.92, 1, 0.92, 1.012, 0.92, 1, 1, 0.92, 0.778, 0.92, 0.846, 0.846, 1, 0.92, 0.92, 0.778, 1, 1, 1, 0.846, 0.846, 1, 1.21, 1.012, 1, 1.012, 0.92, 1.21, 1, 1]
   };
   // tuned2:end
-  // tuned3:begin
-  F.B3_MODE_PRESS = { easy: 1, medium: 1, hard: 1 };
-  F.B3_LEVEL_PRESS = { easy: B2ONES30, medium: B2ONES30, hard: B2ONES30 };
+  // tuned3:begin (written by tools/balance_tune.js apply; re-tune after changing the rules)
+  F.B3_MODE_PRESS = { easy: 1.056, medium: 1.228, hard: 1.775 };
+  F.B3_LEVEL_PRESS = {
+    easy: [1, 1, 0.846, 1, 1, 1, 1, 1, 1, 1, 1, 0.92, 1, 1, 1, 1, 1, 1, 1, 0.92, 0.92, 1, 0.92, 0.92, 0.92, 1, 1, 1, 1, 1],
+    medium: [1.21, 1.21, 0.931, 1.331, 1.331, 1.331, 1.331, 1.21, 1.21, 1.1, 1.1, 0.846, 1.331, 1.331, 1.113, 1.21, 1.113, 1.1, 1.113, 1.012, 0.846, 1.331, 1.012, 0.931, 1.012, 1, 0.778, 1.113, 1.1, 1.012],
+    hard: [1.1, 1, 0.778, 1.1, 1.331, 1.21, 1.1, 1.1, 0.92, 1, 1.1, 0.92, 1.21, 1.331, 1, 1.012, 0.92, 1.012, 0.92, 0.92, 0.92, 0.92, 0.92, 0.92, 0.778, 0.846, 0.778, 1, 0.92, 0.92]
+  };
   // tuned3:end
   F.modeOf = function (m) { return F.MODES[m] ? m : 'medium'; };
   F.modePress = function (mode, idx, book) {
