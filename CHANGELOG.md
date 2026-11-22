@@ -2,6 +2,12 @@
 
 Newest first. The version number is `F.version` in `js/data.js`; the balance numbers are in `research/balance.md`.
 
+## 0.7.0
+
+- **Book 2: The Gear Works.** Fifteen chapters, one new unit each (nine units by chapter 9, twelve by chapter 12, fifteen by 15). Five unit buildings (barracks, archery workshop, wizards tower, stables, church) train up to three units each from food over a timer. Resource buildings (farm, sawmill, mine, market) upgrade to level 3. No pegboard: buildings go on six plots. Terrain per chapter: trees halve missile damage, marsh slows, hills slow melee and boost ranged damage. Opens after book 1 chapter 10.
+- **Book 3: The Lanes.** Ten chapters seen from above, in three lanes. Nine plots, one per lane slot. Fighters can flank into the next lane (6 second cooldown). Opens after book 2 chapter 15.
+- Book 2 and 3 have their own press numbers (`tools/balance_tune.js` with `BOOK=2` or `BOOK=3`), and `tools/bot2.js` plays them.
+
 ## 0.6.0
 
 - **At most eight champions on the map** for the player. The crown gear waits while you have eight.

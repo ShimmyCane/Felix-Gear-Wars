@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var F = globalThis.FGW = globalThis.FGW || {};
-  F.version = '0.6.0';
+  F.version = '0.7.0';
 
   // ---- the world --------------------------------------------------------------------------
   F.VIEW_W = 1280;             // logical width of the screen
@@ -62,6 +62,7 @@
   F.modeRoyal = function (m) { return F.MODE_ROYAL[F.modeOf(m)]; };
   // Book 2 has its own press numbers (the tuner sets them): 45 levels, so the lists are longer.
   var B2ONES = []; for (var b2i = 0; b2i < 45; b2i++) B2ONES.push(1);
+  var B2ONES30 = []; for (var b3i = 0; b3i < 30; b3i++) B2ONES30.push(1);
   // tuned2:begin (written by tools/balance_tune.js apply; re-tune after changing the rules)
   F.B2_MODE_PRESS = { easy: 1.559, medium: 1.854, hard: 2.859 };
   F.B2_LEVEL_PRESS = {
@@ -70,9 +71,14 @@
     hard: [1.1, 1, 0.778, 1.1, 1.113, 1, 1.1, 1.1, 1.1, 0.846, 0.92, 0.92, 0.778, 0.778, 0.778, 0.92, 1, 0.92, 1.012, 0.92, 1, 1, 0.92, 0.778, 0.92, 0.846, 0.846, 1, 0.92, 0.92, 0.778, 1, 1, 1, 0.846, 0.846, 1, 1.21, 1.012, 1, 1.012, 0.92, 1.21, 1, 1]
   };
   // tuned2:end
+  // tuned3:begin
+  F.B3_MODE_PRESS = { easy: 1, medium: 1, hard: 1 };
+  F.B3_LEVEL_PRESS = { easy: B2ONES30, medium: B2ONES30, hard: B2ONES30 };
+  // tuned3:end
   F.modeOf = function (m) { return F.MODES[m] ? m : 'medium'; };
   F.modePress = function (mode, idx, book) {
     var m = F.modeOf(mode);
+    if (book === 3) return F.B3_MODE_PRESS[m] * ((F.B3_LEVEL_PRESS[m] && F.B3_LEVEL_PRESS[m][idx]) || 1);
     if (book === 2) return F.B2_MODE_PRESS[m] * ((F.B2_LEVEL_PRESS[m] && F.B2_LEVEL_PRESS[m][idx]) || 1);
     return F.MODE_PRESS[m] * ((F.LEVEL_PRESS[m] && F.LEVEL_PRESS[m][idx]) || 1);
   };
