@@ -572,8 +572,10 @@
   };
   var DRAW_END = 0;
   // Draw one unit. (sx, sy) is where its feet are on screen.
+  // a unit can draw with another unit's figure (the book 2 and 3 units reuse book 1 figures)
+  Art.drawKey = function (t) { return (F.UNITS[t] && F.UNITS[t].draw) || t; };
   Art.drawUnit = function (c, u, sx, sy, t) {
-    var fn = DRAW[u.type]; if (!fn) return;
+    var fn = DRAW[Art.drawKey(u.type)]; if (!fn) return;
     var pal = palette(u), flash = u.flash > 0 ? Math.min(1, u.flash / 0.18) * 0.7 : 0;
     var moving = u.anim === 'walk';
     var att = u.anim === 'attack' ? Math.min(1, u.at / Math.min(0.55, u.cdMax * 0.5)) : -1;
@@ -613,7 +615,7 @@
   };
   // a falling fighter, tumbling out of its gear
   Art.drawFalling = function (c, u, sx, sy, spin) {
-    var fn = DRAW[u.type]; var pal = palette(u);
+    var fn = DRAW[Art.drawKey(u.type)]; var pal = palette(u);
     var st = { pal: pal, enemy: false, id: u.id, t: spin, w: 0, walk: false, a: -1, bob: 0, F: function (x) { return x; } };
     c.save(); c.translate(sx, sy); c.scale(u.scale * 1.24, u.scale * 1.24); c.rotate(spin * 6); c.translate(0, 38);
     inkStyle(c); fn(c, st); c.restore();

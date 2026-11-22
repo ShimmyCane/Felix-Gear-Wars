@@ -2,6 +2,40 @@
 
 Newest first. The version number is `F.version` in `js/data.js`; the balance numbers are in `research/balance.md`.
 
+## 0.9.1
+
+- **Books 2 and 3 are easy to find.** The settings open with a Levels and books panel: Book 2 and Book 3 buttons jump straight to their levels. The map has Book 1, 2 and 3 tabs at the top. A Preview switch (on by default) opens every level of books 2 and 3; Locked makes them wait for the book before.
+- **The coin cheat grows with prices.** It adds about the price of one new gear or building (at least 25) instead of a flat 25.
+- Script files carry the version in their address, so a browser cannot keep an old copy.
+
+## 0.9.0
+
+- **Book 3 is map first.** The battlefield fills the screen. Building is behind a Build button. Tap a unit to select it, then choose Move (tap the map; the lane follows the tap), Attach (tap a friendly unit to follow and fight beside it), Hide (retreat behind the castle, where enemies cannot target the unit) or Clear. Units without orders fight on their own.
+- Book 3 press values re-tuned for the five new characters.
+
+## 0.8.0
+
+- **Book 3 introduces five new characters:** the freezer (slows the nearest three enemies in its lanes every five seconds; from level three it chooses the most dangerous), the summoner (summons a stoneguard every ten seconds, two at a time), the stoneguard (a defensive creature that keeps summoning after its summoner falls; at level four or more it traps the enemies near it when it falls), the builder (places spike walls ahead in its lane), and the flanker (flanks again after 1.5 seconds). Three new buildings: foundry, ice house, shrine.
+- **Endless play for each book.** Book 2 and book 3 have an endless mode with every unit of the book. The best wave is kept per book.
+
+## 0.7.0
+
+- **Book 2: The Gear Works.** Fifteen chapters, one new unit each (nine units by chapter 9, twelve by chapter 12, fifteen by 15). Five unit buildings (barracks, archery workshop, wizards tower, stables, church) train up to three units each from food over a timer. Resource buildings (farm, sawmill, mine, market) upgrade to level 3. No pegboard: buildings go on six plots. Terrain per chapter: trees halve missile damage, marsh slows, hills slow melee and boost ranged damage. Opens after book 1 chapter 10.
+- **Book 3: The Lanes.** Ten chapters seen from above, in three lanes. Nine plots, one per lane slot. Fighters can flank into the next lane (6 second cooldown). Opens after book 2 chapter 15.
+- Book 2 and 3 have their own press numbers (`tools/balance_tune.js` with `BOOK=2` or `BOOK=3`), and `tools/bot2.js` plays them.
+
+## 0.6.0
+
+- **At most eight champions on the map** for the player. The crown gear waits while you have eight.
+- **Settings slider** for the champion limit (1 to 8, default 8).
+
+## 0.5.0
+
+- **Multipliers cost four times as much.** The 1X, 2X, 4X and 8X prices are now 60, 160, 440 and 1,200 (were 15, 40, 110 and 300).
+- **4X and 8X are a tenth as strong down the chain.** Every gear after a 4X or 8X runs 1.3 times faster (or 1.7 times for 8X), not 4 or 8 times.
+- **1X and 2X only reach their neighbours.** A 2X doubles the gears right next to it, and does not pass the boost on. A 1X has no effect (its value is 1).
+- **Loops no longer compound.** Boosts flow outward from the heart, so a loop of gears around a multiplier counts its boost once.
+
 ## 0.4.0
 
 - **The shop matches your money.** Each gear is offered at the highest level (up to 4) whose price is at most a tenth of your coins, so a bigger bank does not mean a lot of merging. The tray shows the level pips.

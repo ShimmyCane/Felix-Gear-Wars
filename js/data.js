@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var F = globalThis.FGW = globalThis.FGW || {};
-  F.version = '0.4.0';
+  F.version = '0.9.1';
 
   // ---- the world --------------------------------------------------------------------------
   F.VIEW_W = 1280;             // logical width of the screen
@@ -21,7 +21,7 @@
   F.LEVEL_SPEED = 0.92;        // each merge level needs this much of the ticks: stats x2.2 for 8% less time, about 20% better than two side by side
   F.MULTV = [1, 2, 4, 8];      // multiplier gear values
   F.MULTCAP = 8;               // a chain of multipliers never passes on more than 8x (22x used to break the screen)
-  F.MULT_COST = [15, 40, 110, 300];   // price of a multiplier by its value: doubling the heart speed costs more
+  F.MULT_COST = [60, 160, 440, 1200]; // price of a multiplier by its value (four times the first version's prices)
   F.MAXLEVEL = 6;              // level 5 shows a gold star in place of the pips; level 6 adds a crown and makes a boss-sized fighter
   F.BIG_LEVEL = 6;             // from this level a fighter is boss-sized, reaches 25% further and its ability is stronger
   F.MULT_MAXLEVEL = 4;         // multipliers stop at 8x (no value for a fifth level)
@@ -60,8 +60,32 @@
   F.WAVE_BASE = 26;             // enemies in one wave at press 1 (harder modes allow more, see sim.js makeWave)
   F.MODE_ROYAL = { easy: 1, medium: 1.4, hard: 2 };   // how much faster the crown (royal) gear fills, by mode
   F.modeRoyal = function (m) { return F.MODE_ROYAL[F.modeOf(m)]; };
+  // Book 2 has its own press numbers (the tuner sets them): 45 levels, so the lists are longer.
+  var B2ONES = []; for (var b2i = 0; b2i < 45; b2i++) B2ONES.push(1);
+  var B2ONES30 = []; for (var b3i = 0; b3i < 30; b3i++) B2ONES30.push(1);
+  // tuned2:begin (written by tools/balance_tune.js apply; re-tune after changing the rules)
+  F.B2_MODE_PRESS = { easy: 1.559, medium: 1.854, hard: 2.859 };
+  F.B2_LEVEL_PRESS = {
+    easy: [0.92, 0.92, 0.778, 1, 1, 1, 1, 1, 1, 0.92, 1, 0.92, 0.92, 0.92, 0.92, 1, 1, 1, 1, 1, 1, 1, 0.92, 0.846, 1, 1, 0.92, 1, 0.92, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    medium: [0.846, 0.778, 0.778, 1.331, 1.21, 1.012, 1.331, 1.331, 1.331, 0.778, 0.846, 0.931, 0.778, 0.846, 0.778, 1.21, 1.21, 1.1, 0.931, 1.012, 1, 1.113, 0.92, 0.846, 1, 1.012, 1.012, 1.1, 1.012, 0.931, 1, 1.331, 1.1, 1.1, 1.1, 1.012, 1.012, 1.1, 1.1, 1.21, 1.1, 1.21, 1.331, 1.331, 1.331],
+    hard: [1.1, 1, 0.778, 1.1, 1.113, 1, 1.1, 1.1, 1.1, 0.846, 0.92, 0.92, 0.778, 0.778, 0.778, 0.92, 1, 0.92, 1.012, 0.92, 1, 1, 0.92, 0.778, 0.92, 0.846, 0.846, 1, 0.92, 0.92, 0.778, 1, 1, 1, 0.846, 0.846, 1, 1.21, 1.012, 1, 1.012, 0.92, 1.21, 1, 1]
+  };
+  // tuned2:end
+  // tuned3:begin (written by tools/balance_tune.js apply; re-tune after changing the rules)
+  F.B3_MODE_PRESS = { easy: 1.056, medium: 1.228, hard: 1.775 };
+  F.B3_LEVEL_PRESS = {
+    easy: [1, 1, 0.846, 1, 1, 1, 1, 1, 1, 1, 1, 0.92, 1, 1, 1, 1, 1, 1, 1, 0.92, 0.92, 1, 0.92, 0.92, 0.92, 1, 1, 1, 1, 1],
+    medium: [1.21, 1.21, 0.931, 1.331, 1.331, 1.331, 1.331, 1.21, 1.21, 1.1, 1.1, 0.846, 1.331, 1.331, 1.113, 1.21, 1.113, 1.1, 1.113, 1.012, 0.846, 1.331, 1.012, 0.931, 1.012, 1, 0.778, 1.113, 1.1, 1.012],
+    hard: [1.1, 1, 0.778, 1.1, 1.331, 1.21, 1.1, 1.1, 0.92, 1, 1.1, 0.92, 1.21, 1.331, 1, 1.012, 0.92, 1.012, 0.92, 0.92, 0.92, 0.92, 0.92, 0.92, 0.778, 0.846, 0.778, 1, 0.92, 0.92]
+  };
+  // tuned3:end
   F.modeOf = function (m) { return F.MODES[m] ? m : 'medium'; };
-  F.modePress = function (mode, idx) { var m = F.modeOf(mode); return F.MODE_PRESS[m] * ((F.LEVEL_PRESS[m] && F.LEVEL_PRESS[m][idx]) || 1); };
+  F.modePress = function (mode, idx, book) {
+    var m = F.modeOf(mode);
+    if (book === 3) return F.B3_MODE_PRESS[m] * ((F.B3_LEVEL_PRESS[m] && F.B3_LEVEL_PRESS[m][idx]) || 1);
+    if (book === 2) return F.B2_MODE_PRESS[m] * ((F.B2_LEVEL_PRESS[m] && F.B2_LEVEL_PRESS[m][idx]) || 1);
+    return F.MODE_PRESS[m] * ((F.LEVEL_PRESS[m] && F.LEVEL_PRESS[m][idx]) || 1);
+  };
 
   // ---- fighters ---------------------------------------------------------------------------
   // tick0 = quarter turns of the heart one gear needs for one level-1 fighter. The spearman is the reference (12). The others follow
@@ -112,6 +136,7 @@
   F.TRAY_SHARE = 0.1; F.TRAY_MAXLEVEL = 4;
   // Free-for-all: the wave's value is this many times the value of your army at full strength (the waves climb to it over time).
   F.freeFoe = function (mode) { return { easy: 1, medium: 2, hard: 3 }[F.modeOf(mode)]; };
+  F.MAX_CHAMPIONS = 8;         // champions the player can have on the map at once (a settings slider can lower it)
   F.FREE_ARMY = 25;            // the free-for-all army limit (a slider in the settings goes up to 50)
   F.UNIT_CAP = function (type) { var i = F.UNIT_ORDER.indexOf(type); return i < 0 ? F.MAX_UNITS : 5 * (i + 1); };
 
@@ -159,7 +184,7 @@
 
   // ---- gears that are not fighters --------------------------------------------------------
   F.SPECIALS = {
-    mult:      { name: 'Multiplier', cost: 15, icon: 'mult', note: 'Passes ticks on, times 1, 2, 4 or 8' },
+    mult:      { name: 'Multiplier', cost: 60, icon: 'mult', note: 'Passes ticks on, times 1, 2, 4 or 8' },
     boss:      { name: 'Boss gear', cost: 120, icon: 'boss', note: 'Turns very slowly, then a champion steps out' },
     lightning: { name: 'Lightning', cost: 60, tick0: 20, icon: 'lightning', dmg: 30, strikes: 2 },
     rocket:    { name: 'Rockets', cost: 70, tick0: 24, icon: 'rocket', dmg: 40, splash: 95 },
@@ -417,6 +442,120 @@
     };
   };
 
+
+  // ---- book 2: the Gear Works. Buildings on plots instead of pegs, resources, and terrain. --------------------------
+  // Five unit buildings make fifteen units. The unit introduced in each chapter is listed in B2_SEQ; the counts check out at
+  // chapter 9 (nine units), chapter 12 (twelve) and chapter 15 (fifteen).
+  // Five new units (crossbow, apprentice, battlemage, rider, healer) reuse a drawing from book 1 through `draw`.
+  F.UNITS.crossbow   = { name: 'Crossbowman', cost: 55, hp: 70, atk: 20, def: 3, range: 360, speed: 36, cd: 1.6, kind: 'ranged', shield: 0.55, draw: 'archer', vs: {}, order: 0 };
+  F.UNITS.apprentice = { name: 'Apprentice', cost: 45, hp: 40, atk: 12, def: 1, range: 250, speed: 40, cd: 1.3, kind: 'ranged', magic: true, splash: 50, draw: 'mage', vs: {}, order: 0 };
+  F.UNITS.battlemage = { name: 'Battlemage', cost: 120, hp: 90, atk: 34, def: 4, range: 300, speed: 36, cd: 1.8, kind: 'ranged', magic: true, splash: 90, draw: 'mage', vs: {}, order: 0 };
+  F.UNITS.rider      = { name: 'Rider', cost: 80, hp: 110, atk: 15, def: 6, range: 56, speed: 130, cd: 0.9, kind: 'melee', charge: 1.6, draw: 'knight', vs: {}, order: 0 };
+  F.UNITS.healer     = { name: 'Healer', cost: 70, hp: 90, atk: 6, def: 4, range: 200, speed: 44, cd: 1.6, kind: 'ranged', magic: true, power: 'heal', draw: 'monk', vs: {}, order: 0 };
+  F.B2_SEQ = ['spearman', 'archer', 'mage', 'knight', 'fighter', 'catapult', 'apprentice', 'rider', 'monk', 'tank', 'assassin', 'shield', 'crossbow', 'healer', 'battlemage'];
+  F.B2_BUILDINGS = {
+    farm:     { name: 'Farm', kind: 'res', makes: 'food', rate: 1.0, cost: 40, wood: 0, runes: 0, unlock: 1 },
+    sawmill:  { name: 'Sawmill', kind: 'res', makes: 'wood', rate: 0.8, cost: 40, wood: 0, runes: 0, unlock: 1 },
+    mine:     { name: 'Mine', kind: 'res', makes: 'runes', rate: 0.5, cost: 60, wood: 0, runes: 0, unlock: 2 },
+    market:   { name: 'Market', kind: 'res', makes: 'gold', rate: 1.2, cost: 60, wood: 0, runes: 0, unlock: 2 },
+    barracks: { name: 'Barracks', kind: 'unit', units: ['spearman', 'fighter', 'tank'], cost: 80, wood: 20, runes: 0, unlock: 1 },
+    archery:  { name: 'Archery workshop', kind: 'unit', units: ['archer', 'catapult', 'crossbow'], cost: 90, wood: 30, runes: 0, unlock: 2 },
+    wizards:  { name: 'Wizards tower', kind: 'unit', units: ['mage', 'apprentice', 'battlemage'], cost: 110, wood: 0, runes: 10, unlock: 3 },
+    stables:  { name: 'Stables', kind: 'unit', units: ['knight', 'rider', 'assassin'], cost: 120, wood: 40, runes: 0, unlock: 4 },
+    church:   { name: 'Church', kind: 'unit', units: ['monk', 'shield', 'healer'], cost: 120, wood: 0, runes: 20, unlock: 9 },
+  };
+  // the unit and building for each chapter: the unit introduced there, and the terrain it is fought on
+  F.B2_CHAPTERS = [
+    { n: 1, title: 'The Gear Works',       unit: 'spearman',   terrain: [] },
+    { n: 2, title: 'Arrows in the Trees',  unit: 'archer',     terrain: [{ x0: 1100, x1: 1500, kind: 'trees' }] },
+    { n: 3, title: 'The Wizards\' Marsh',  unit: 'mage',       terrain: [{ x0: 900, x1: 1400, kind: 'marsh' }] },
+    { n: 4, title: 'The Iron Stables',     unit: 'knight',     terrain: [{ x0: 1200, x1: 1700, kind: 'hills' }] },
+    { n: 5, title: 'Barracks in the Hills', unit: 'fighter',   terrain: [{ x0: 600, x1: 900, kind: 'trees' }, { x0: 1500, x1: 1900, kind: 'hills' }] },
+    { n: 6, title: 'Siege by the Pines',   unit: 'catapult',   terrain: [{ x0: 700, x1: 1100, kind: 'marsh' }, { x0: 1600, x1: 2000, kind: 'trees' }] },
+    { n: 7, title: 'Apprentices in Fog',   unit: 'apprentice', terrain: [{ x0: 500, x1: 800, kind: 'marsh' }, { x0: 1300, x1: 1800, kind: 'hills' }] },
+    { n: 8, title: 'Riders on the Ridge',  unit: 'rider',      terrain: [{ x0: 1000, x1: 1500, kind: 'hills' }, { x0: 1800, x1: 2200, kind: 'trees' }] },
+    { n: 9, title: 'The Bell Tower',       unit: 'monk',       terrain: [{ x0: 700, x1: 1000, kind: 'trees' }, { x0: 1400, x1: 1900, kind: 'marsh' }] },
+    { n: 10, title: 'The Iron Bulwark',    unit: 'tank',       terrain: [{ x0: 800, x1: 1200, kind: 'hills' }, { x0: 1600, x1: 2000, kind: 'marsh' }] },
+    { n: 11, title: 'Shadows at the Mill', unit: 'assassin',   terrain: [{ x0: 500, x1: 900, kind: 'trees' }, { x0: 1200, x1: 1700, kind: 'marsh' }] },
+    { n: 12, title: 'The Bronze Shield Hall', unit: 'shield',  terrain: [{ x0: 900, x1: 1300, kind: 'hills' }, { x0: 1700, x1: 2100, kind: 'trees' }] },
+    { n: 13, title: 'Crossbows at Dusk',   unit: 'crossbow',   terrain: [{ x0: 600, x1: 1000, kind: 'marsh' }, { x0: 1400, x1: 1900, kind: 'hills' }] },
+    { n: 14, title: 'The Healing Ford',    unit: 'healer',     terrain: [{ x0: 800, x1: 1200, kind: 'trees' }, { x0: 1500, x1: 2000, kind: 'marsh' }] },
+    { n: 15, title: 'The Battlemage Keep', unit: 'battlemage', terrain: [{ x0: 500, x1: 900, kind: 'hills' }, { x0: 1100, x1: 1600, kind: 'trees' }, { x0: 1800, x1: 2300, kind: 'marsh' }] },
+  ];
+  // ---- book 3's five new characters (the freezer, the summoner and its stoneguard, the builder, the flanker) ----------
+  F.UNITS.freezer   = { name: 'Freezer', cost: 60, hp: 80, atk: 8, def: 4, range: 240, speed: 40, cd: 1.6, kind: 'ranged', magic: true, power: 'freeze', draw: 'mage', vs: {}, order: 0 };
+  F.UNITS.summoner  = { name: 'Summoner', cost: 90, hp: 90, atk: 10, def: 3, range: 260, speed: 34, cd: 1.7, kind: 'ranged', magic: true, power: 'summon', draw: 'monk', vs: {}, order: 0 };
+  F.UNITS.stoneguard = { name: 'Stoneguard', cost: 0, hp: 180, atk: 9, def: 22, range: 50, speed: 30, cd: 1.3, kind: 'melee', power: 'trap', draw: 'tank', vs: {}, order: 0, summoned: true };
+  F.UNITS.builder   = { name: 'Builder', cost: 70, hp: 100, atk: 9, def: 8, range: 50, speed: 46, cd: 1.1, kind: 'melee', power: 'build', draw: 'fighter', vs: {}, order: 0 };
+  F.UNITS.flanker   = { name: 'Flanker', cost: 75, hp: 70, atk: 16, def: 3, range: 50, speed: 110, cd: 0.8, kind: 'melee', power: 'flank', draw: 'assassin', vs: {}, order: 0 };
+  F.B3_BUILDINGS = {
+    foundry:  { name: 'Foundry', kind: 'unit', units: ['builder', 'flanker'], cost: 110, wood: 40, runes: 10, unlock: 3 },
+    icehouse: { name: 'Ice house', kind: 'unit', units: ['freezer'], cost: 90, wood: 0, runes: 20, unlock: 2 },
+    shrine:   { name: 'Shrine', kind: 'unit', units: ['summoner'], cost: 100, wood: 0, runes: 30, unlock: 4 },
+  };
+  F.B3_SPIKE = { dps: 22, life: 30, radius: 50, max: 3, every: 12 };   // the builder's spike walls
+
+  // ---- book 3: the Lanes. Seen from above, three lanes, nine plots, and fighters that can flank into the next lane. -----
+  // Ten chapters. The fifteen book 2 units arrive two or three at a time; the last chapters have them all.
+  F.B3_UNITS_BY_CH = [['spearman', 'archer'], ['mage', 'freezer'], ['knight', 'summoner'], ['builder', 'fighter'], ['flanker', 'catapult'],
+    ['apprentice', 'rider'], ['monk', 'tank'], ['assassin', 'shield'], ['crossbow', 'healer'], ['battlemage']];
+  F.b3Unlocked = function (ch) { var res = []; for (var i = 0; i < Math.min(ch, F.B3_UNITS_BY_CH.length); i++) res = res.concat(F.B3_UNITS_BY_CH[i]); return res; };
+  F.b3Buildings = function (ch) { return F.b2Buildings(ch, 3); };
+  Object.keys(F.B3_BUILDINGS).forEach(function (k) { F.B2_BUILDINGS[k] = F.B3_BUILDINGS[k]; });   // one lookup for every building
+  F.unlockedFor = function (cfg) { return cfg.book === 3 ? F.b3Unlocked(cfg.ch) : F.b2Unlocked(cfg.ch); };
+  F.B3_CHAPTERS = [
+    { n: 1, title: 'Three Roads', terrain: [] }, { n: 2, title: 'Mages on the Middle Road', terrain: [] },
+    { n: 3, title: 'The Flank', terrain: [] }, { n: 4, title: 'Fog on the Lanes', terrain: [] }, { n: 5, title: 'The Bell Road', terrain: [] },
+    { n: 6, title: 'Shadows and Shields', terrain: [] }, { n: 7, title: 'Crossbows in Three Lanes', terrain: [] },
+    { n: 8, title: 'The Battlemage Gate', terrain: [] }, { n: 9, title: 'Every Road at Once', terrain: [] }, { n: 10, title: 'The Last Crossing', terrain: [] },
+  ];
+  F.b3Config = function (ch, lv, o) {
+    o = o || {}; var idx = (ch - 1) * 3 + (lv - 1), C = F.B3_CHAPTERS[ch - 1];
+    var pool = F.b3Unlocked(ch), gold = 180 + 15 * idx, unit = pool[pool.length - 1] || 'spearman';
+    return {
+      id: 'b3c' + ch + 'l' + lv, book: 3, lanes: 3, ch: ch, lv: lv, idx: idx, seed: 7000 + idx * 77, free: false, world: 2560,
+      board: { cols: 3, rows: 3, heart: { c: 0, r: 0 }, holes: [], dormant: [] },
+      lives: 20 + 5 * ch, coins: gold, creep: 0, gearTarget: 0, lastWave: 5 + idx, dynamic: true, len: 1, waves: [],
+      bossName: lv === 3 ? 'The Lane Captain ' + ch : null, bossType: lv === 3 ? unit : null,
+      baseHp: F.TUNE.fort + F.TUNE.fortPer * idx, pool: pool, specials: [], quick: !!o.quick, mode: F.modeOf(o.mode),
+      terrain: C.terrain, plots: 9, res: { food: 80, wood: 50, runes: 25 },
+      story: { cap: 'Book 3, chapter ' + ch + ': ' + C.title, short: 'Three lanes. Send fighters where the Horde is thinnest.', story: 'The road splits into three lanes. Your fighters can flank into the next lane to meet the enemy where it is weakest.' },
+    };
+  };
+  F.B2_BOSS = { 3: 'The Marsh Witch', 6: 'Lord of the Pines', 9: 'The Bell Keeper', 12: 'Bronze Warden', 15: 'The Battlemage King' };
+  F.B2_PLOTS = 6;              // building plots along the front of the map
+  F.b2Unlocked = function (ch) { var res = []; for (var i = 0; i < ch; i++) res.push(F.B2_SEQ[i]); return res; };
+  F.b2Buildings = function (ch, book) { return Object.keys(F.B2_BUILDINGS).filter(function (k) { return F.B2_BUILDINGS[k].unlock <= ch && (book === 3 || !F.B3_BUILDINGS[k]); }); };
+  // Endless play for books 2 and 3: every unit of the book, the waves keep growing, the fortress cannot fall. Best wave is kept per book.
+  F.b2FreeConfig = function (o) {
+    o = o || {}; var c = F.b2Config(15, 3, o), pool = F.b2Unlocked(15);
+    c.id = 'b2free'; c.free = true; c.ch = 15; c.lv = 0; c.idx = 44; c.bossName = null; c.bossType = null; c.bossEvery = 5;
+    c.pool = pool; c.lives = 60; c.coins = 400; c.baseHp = 99999; c.res = { food: 120, wood: 80, runes: 40 }; c.plots = 6; c.terrain = [];
+    c.story = { cap: 'Book 2: endless', short: 'Every Gear Works unit, every building. The Horde never stops.', story: 'No chapter now. Build the Works, train every unit and hold back the Horde for as long as you can.' };
+    return c;
+  };
+  F.b3FreeConfig = function (o) {
+    o = o || {}; var c = F.b3Config(10, 3, o), pool = F.b3Unlocked(10);
+    c.id = 'b3free'; c.free = true; c.ch = 10; c.lv = 0; c.idx = 29; c.bossName = null; c.bossType = null; c.bossEvery = 5;
+    c.pool = pool; c.lives = 60; c.coins = 400; c.baseHp = 99999; c.res = { food: 120, wood: 80, runes: 40 }; c.plots = 9; c.terrain = [];
+    c.story = { cap: 'Book 3: endless', short: 'Three lanes, every unit, every flank. The Horde never stops.', story: 'The lanes run on forever. Flank, freeze and build, and hold the Horde as long as you can.' };
+    return c;
+  };
+  F.b2UnitTime = function (type) { return 6 + 2 * F.tierOf(type === 'monk' ? 'monk' : type) / 4; };   // seconds to train a unit
+  F.b2Config = function (ch, lv, o) {
+    o = o || {}; var idx = (ch - 1) * 3 + (lv - 1), C = F.B2_CHAPTERS[ch - 1];
+    var pool = F.b2Unlocked(ch), gold = 150 + 15 * idx;
+    return {
+      id: 'b2c' + ch + 'l' + lv, book: 2, ch: ch, lv: lv, idx: idx, seed: 5000 + idx * 77, free: false, world: 2560,
+      board: { cols: 3, rows: 2, heart: { c: 0, r: 0 }, holes: [], dormant: [] },
+      lives: 20 + 5 * ch, coins: gold, creep: 0, gearTarget: 0, lastWave: 5 + idx, dynamic: true, len: 1, waves: [],
+      bossName: lv === 3 ? F.B2_BOSS[ch] || null : null, bossType: lv === 3 ? C.unit : null,
+      baseHp: F.TUNE.fort + F.TUNE.fortPer * idx, pool: pool, specials: [], quick: !!o.quick, mode: F.modeOf(o.mode),
+      terrain: C.terrain, plots: F.B2_PLOTS, res: { food: 60, wood: 40, runes: 20 },
+      story: { cap: 'Chapter ' + ch + ': ' + C.title, short: Art_unit(C.unit) + ' joins the Works.', story: 'In the Gear Works, ' + C.unit + ' is the new unit. Build the buildings that make it, and keep the Horde back.' },
+    };
+  };
+  function Art_unit(t) { return F.UNITS[t] ? F.UNITS[t].name : t; }
   F.weightedPick = weightedPick;
   F.enemyScale = function (idx) {
     return { hp: 1 + F.TUNE.hp * idx, atk: 1 + F.TUNE.atk * idx, def: 1 + 0.03 * idx };

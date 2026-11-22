@@ -20,7 +20,7 @@
   window.addEventListener('unhandledrejection', function (ev) { GW.err('Promise error', ev.reason); });
 
   // ---- settings and progress (device storage, always in try/catch) -----------------------------
-  var DEF = { armyMax: 25, mode: 'medium', showFun: 0, funPeak: 3, funFade: 7, challenge: 1, bossRevs: 20, voice: 'auto', heartSpeed: 1, theme: 'manuscript', sfx: 0.8, music: 0.5, speed: 1, quick: 0, follow: 1, reading: 'auto', showErrors: 0 };
+  var DEF = { preview: 1, champMax: 8, armyMax: 25, mode: 'medium', showFun: 0, funPeak: 3, funFade: 7, challenge: 1, bossRevs: 20, voice: 'auto', heartSpeed: 1, theme: 'manuscript', sfx: 0.8, music: 0.5, speed: 1, quick: 0, follow: 1, reading: 'auto', showErrors: 0 };
   var S = Object.assign({}, DEF);
   try { var raw = JSON.parse(localStorage.getItem('fgw.settings') || '{}'); Object.keys(DEF).forEach(function (k) { if (raw[k] !== undefined) S[k] = raw[k]; }); } catch (e) { /* storage blocked */ }
   function saveSettings() { try { localStorage.setItem('fgw.settings', JSON.stringify(S)); } catch (e) { /* ignore */ } }
@@ -40,12 +40,14 @@
     layout();
   }
   var L = {};
+  var b3Build = false, b3Mode = null;     // book 3: the build view is closed by default; a command mode (move or attach) waits for a tap
   function layout() {
     var cols = sim ? sim.cols : 7, rows = sim ? sim.rows : 3;
     var cs = Math.min(80, Math.floor((H * 0.4 - 24) / rows)); cs = Math.max(52, cs);
     L.cs = cs; L.bx = 24; L.by = 84; L.bw = cols * cs + 24; L.bh = rows * cs + 24;
     var tx = L.bx + L.bw + 16; L.tray = { x: tx, y: L.by, w: W - 22 - tx, h: L.bh };
     var top = L.by + L.bh + 12; L.bf = { x: 0, y: top, w: W, h: H - top };
+    if (sim && sim.book === 3 && !b3Build) L.bf = { x: 0, y: L.by, w: W, h: H - L.by };   // book 3: the map is the screen
     L.mini = { x: 360, y: H - 38, w: 560, h: 20 };
   }
   function cellX(c) { return L.bx + 12 + c * L.cs + L.cs / 2; }
@@ -61,8 +63,8 @@
   var drag = null, hudBtns = [], pointers = {};
   var pendingHole = null, lastDraw = 0;     // a peg waiting for its second tap to be cleared; last time the screen was drawn
   function makeSim(c) {
-    cfg = c; sim = new F.Sim(c, { seed: (Math.random() * 1e9) | 0, armyMax: +S.armyMax || F.FREE_ARMY, heartSpeed: +S.heartSpeed || 1, specialty: Art.specialty(), funPeak: +S.funPeak || 3, funFade: +S.funFade || 7, challenge: +S.challenge || 1 });
-    sim.speed = F.SPEEDS.indexOf(+S.speed) >= 0 ? +S.speed : 1; pendingHole = null; scroll = 0; parts = []; bolts = []; falls = {}; banner = null; selSlot = -1; selGear = 0; info = null; ended = false; endTimer = 0; paused = false;
+    cfg = c; sim = new F.Sim(c, { seed: (Math.random() * 1e9) | 0, armyMax: +S.armyMax || F.FREE_ARMY, champMax: +S.champMax || F.MAX_CHAMPIONS, heartSpeed: +S.heartSpeed || 1, specialty: Art.specialty(), funPeak: +S.funPeak || 3, funFade: +S.funFade || 7, challenge: +S.challenge || 1 });
+    sim.speed = F.SPEEDS.indexOf(+S.speed) >= 0 ? +S.speed : 1; pendingHole = null; b2Bld = null; b2Slot = -1; scroll = 0; parts = []; bolts = []; falls = {}; banner = null; selSlot = -1; selGear = 0; info = null; ended = false; endTimer = 0; paused = false;
     layout();
   }
 
@@ -147,6 +149,11 @@
         case 'split': sparks(e.x - scroll, Art.groundY(L.bf) - 30, 14, '#7fd672'); Au.play('pop'); break;
         case 'raise': ring(e.x - scroll, Art.groundY(L.bf) - 20, 44, '#b98cff'); floatText(e.x - scroll, Art.groundY(L.bf) - 70, 'Rise!', '#d9c2ff'); Au.play('merge'); break;
         case 'reform': ring(e.x - scroll, Art.groundY(L.bf) - 30, 70, '#7fd672'); floatText(e.x - scroll, Art.groundY(L.bf) - 90, 'The blob reforms!', '#c7f0a0'); Au.play('horn', false); break;
+        case 'freeze': ring(e.x - scroll, Art.groundY(L.bf) - 30, 60, '#bfe6ff'); floatText(e.x - scroll, Art.groundY(L.bf) - 80, 'Frost!', '#bfe6ff'); Au.play('merge'); break;
+        case 'summon': ring(e.x - scroll, Art.groundY(L.bf) - 30, 40, '#b8844a'); floatText(e.x - scroll, Art.groundY(L.bf) - 70, 'Stoneguard!', '#e8d7b0'); break;
+        case 'build': floatText(e.x - scroll, Art.groundY(L.bf) - 60, 'Spikes!', '#e8d7b0'); break;
+        case 'trap': ring(e.x - scroll, Art.groundY(L.bf), 80, '#b8844a'); floatText(e.x - scroll, Art.groundY(L.bf) - 80, 'Trapped!', '#e8d7b0'); break;
+        case 'flank': floatText(e.x - scroll, Art.groundY(L.bf) - 60, 'Flank!', '#ffe27a'); break;
         case 'dodge': floatText(e.x - scroll, Art.groundY(L.bf) - 70, 'Dodged!', '#c7f0a0'); break;
         case 'basehit': Au.play('base'); sparks(sim.ebx - scroll + 60, Art.groundY(L.bf) - 40, 6, '#ffd090'); break;
         case 'basefall': shake = 14; Au.play('boom'); puff(sim.ebx - scroll + 80, Art.groundY(L.bf) - 50, 30, '#7a6a60', 160, 40); break;
@@ -165,7 +172,7 @@
     c.fillStyle = Art.C('#d63a4a'); Art.rr(c, 76, hy + 43, Math.max(2, 70 * sim.lives / sim.maxLives), 6, 3); c.fill();
     coinIcon(c, 196, hy + 28, 13); txt(c, String(Math.floor(sim.coins)), 216, hy + 29, 28, T.text);
     var title = cfg.free ? 'Free-for-all' : 'Chapter ' + cfg.ch + ' · Level ' + cfg.lv;
-    txt(c, title, 340, hy + 17, 18, T.text, 'left', '800'); txt(c, cfg.free ? 'Wave ' + Math.max(0, sim.waveIdx + 1) + '  (best ' + P.freeBest + ')' : 'Wave ' + Math.max(0, sim.waveIdx + 1) + ' / ' + sim.waveCount, 340, hy + 39, 16, T.text, 'left', '600');
+    txt(c, title, 340, hy + 17, 18, T.text, 'left', '800'); txt(c, cfg.free ? 'Wave ' + Math.max(0, sim.waveIdx + 1) + '  (best ' + (P[bestKey(cfg)] || 0) + ')' : 'Wave ' + Math.max(0, sim.waveIdx + 1) + ' / ' + sim.waveCount, 340, hy + 39, 16, T.text, 'left', '600');
     var army = sim.alliesAlive(), armyCap = sim.armyCap(); txt(c, 'Army ' + army + '/' + armyCap, cfg.free ? 520 : 450, hy + 39, 16, army >= armyCap ? Art.C('#c0392b') : T.text, 'left', '700');
     var bx = W - 34 - 68;
     function add(id, icon, w, fill) { var b = { id: id, icon: icon, x: bx - (w - 64), y: hy + 4, w: w, h: 48, fill: fill }; bx -= w + 8; hudBtns.push(b); return b; }
@@ -174,7 +181,12 @@
     else if (sim.status === 'running' && sim.waveIdx + 1 < sim.waveCount && sim.waveTimer > 2) add('next', 'next', 96, Art.C('#8fd18a'));
     hudBtns.forEach(function (b) { button(c, b); });
     // pace of the next wave
-    if (sim.status === 'running' && sim.waveIdx + 1 < sim.waveCount && isFinite(sim.waveTimer)) {
+    if (sim.hasBuildings) {
+      txt(c, 'food ' + Math.floor(sim.res.food) + '   wood ' + Math.floor(sim.res.wood) + '   runes ' + Math.floor(sim.res.runes), 560, hy + 17, 16, T.text, 'left', '800');
+      var tr = sim.buildings.filter(function (x) { return x.queue.length; }).slice(0, 3).map(function (x) { return F.B2_BUILDINGS[x.type].name + ' ' + Math.ceil(x.queue[0].left) + 's'; });
+      txt(c, tr.length ? 'Training: ' + tr.join('  ·  ') : (sim.book === 3 ? 'Build, then train from a building' : 'Tap a building to train units'), 560, hy + 39, 14, T.text, 'left', '600');
+    }
+    if (sim.status === 'running' && sim.waveIdx + 1 < sim.waveCount && isFinite(sim.waveTimer) && !sim.hasBuildings) {
       var wt = Math.max(0, sim.waveTimer), fr = 1 - Math.min(1, wt / sim.gap);
       c.fillStyle = 'rgba(0,0,0,0.15)'; Art.rr(c, 560, 44, 150, 8, 4); c.fill(); c.fillStyle = Art.C('#e0a43a'); Art.rr(c, 560, 44, Math.max(3, 150 * fr), 8, 4); c.fill();
       txt(c, 'next wave', 560, 29, 14, Art.theme.text, 'left', '600');
@@ -369,7 +381,10 @@
     var sh = shake > 0.3 ? [(Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake] : [0, 0]; c.translate(sh[0], sh[1]);
     if (sim) {
       hudBtns = [];
-      drawBattle(c); drawBoard(c); drawTray(c); drawHUD(c); drawMini(c); if (+S.showFun) drawFun(c);
+      if (sim.book === 3) drawTopBattle(c); else drawBattle(c);
+      if (sim.book === 3 && !b3Build) { /* the map is the screen */ } else if (sim.hasBuildings) { drawB2Board(c); drawB2Tray(c); } else { drawBoard(c); drawTray(c); }
+      drawHUD(c); drawMini(c); if (+S.showFun) drawFun(c);
+      if (sim.hasBuildings && (sim.book !== 3 || b3Build)) drawB2Popup(c);
       if (drag && drag.moved) {
         if (drag.kind === 'gear') { var g = drag.gear; g.need = F.ticksNeeded(g.type, g.level); Art.drawGear(c, g, drag.x, drag.y - 12, L.cs / 2 * 1.08, gearAngle(g), { glow: true }); }
         else if (drag.kind === 'card') { var ty = sim.tray[drag.slot]; if (ty) { var tp = F.trayParts(ty); Art.drawGear(c, { type: tp.type, level: tp.level, charge: 0, need: F.ticksNeeded(tp.type, tp.level), active: false, locked: false, pulse: 0 }, drag.x, drag.y - 12, L.cs / 2 * 1.08, tAnim, { glow: true }); } }
@@ -410,7 +425,7 @@
     for (i = bolts.length - 1; i >= 0; i--) { bolts[i].t += dt; if (bolts[i].t > 0.28) bolts.splice(i, 1); }
     if (banner) { banner.t += dt; if (banner.t > 2.6) banner = null; }
     shake = Math.max(0, shake - dt * 30); redFlash = Math.max(0, redFlash - dt * 1.8); beat = Math.max(0, beat - dt * 4);
-    if (cfg && cfg.free && sim.waveIdx + 1 > P.freeBest) { P.freeBest = sim.waveIdx + 1; }
+    if (cfg && cfg.free && sim.waveIdx + 1 > (P[bestKey(cfg)] || 0)) { P[bestKey(cfg)] = sim.waveIdx + 1; }
   }
   function updateCamera(dt) {
     if (drag && drag.kind === 'pan') return;
@@ -424,6 +439,194 @@
     scroll += (target - scroll) * Math.min(1, dt * 2.2);
   }
 
+  // ---- book 2 screen: plots, shop cards, the building popup, and taps --------------------------------------------
+  var b2Bld = null, b2Slot = -1;     // the building whose popup is open; the shop card selected for placing
+  var B2COL = { food: '#8fd18a', wood: '#b8844a', runes: '#9b6bd1', gold: '#f2c94c', unit: '#7aa2d9' };
+  function bestKey(c) { return c && c.book ? 'freeBest' + c.book : 'freeBest'; }
+  function nextCfg(c, step) {
+    var o = { quick: +S.quick, mode: S.mode };
+    if (c.free && c.book === 2) return F.b2FreeConfig(o);
+    if (c.free && c.book === 3) return F.b3FreeConfig(o);
+    if (c.book === 2) { var i = Math.min(44, c.idx + step); return F.b2Config(Math.floor(i / 3) + 1, i % 3 + 1, o); }
+    if (c.book === 3) { var k = Math.min(29, c.idx + step); return F.b3Config(Math.floor(k / 3) + 1, k % 3 + 1, o); }
+    if (c.free) return F.freeConfig(o);
+    var j = c.idx + step; return F.levelConfig(Math.floor(j / 3) + 1, j % 3 + 1, o);
+  }
+  function plotXY(i) { return [cellX(i % 3), cellY(Math.floor(i / 3))]; }
+  function findB(id) { return sim.buildings.filter(function (x) { return x.id === id; })[0]; }
+  function b2PopupRect() { return { x: 250, y: 140, w: 780, h: 240 }; }
+  function b2TrainRect(i) { var R = b2PopupRect(); return { x: R.x + 20 + i * 250, y: R.y + 90, w: 230, h: 62 }; }
+  function b2UpgradeRect() { var R = b2PopupRect(); return { x: R.x + 20, y: R.y + 170, w: 470, h: 50 }; }
+  function b2RefreshRect() { var t = L.tray; return { x: t.x + 12, y: t.y + t.h - 40, w: 140, h: 30 }; }
+  function drawB2Board(c) {
+    var T = Art.theme, i;
+    panel(c, L.bx, L.by, L.bw, L.bh, Art.C(T.panel2), 18);
+    for (i = 0; i < sim.plotX.length; i++) {
+      var p = plotXY(i), s = L.cs * 0.84, bid = sim.plotUse[i], b = bid ? findB(bid) : null, B = b ? F.B2_BUILDINGS[b.type] : null;
+      var hot = !b && b2Slot >= 0;
+      panel(c, p[0] - s / 2, p[1] - s / 2, s, s, Art.C(b ? B2COL[B.kind === 'res' ? B.makes : 'unit'] : T.panel), 12);
+      if (hot) { c.strokeStyle = Art.C('#ffd24a'); c.lineWidth = 3; c.setLineDash([6, 5]); Art.rr(c, p[0] - s / 2 + 3, p[1] - s / 2 + 3, s - 6, s - 6, 10); c.stroke(); c.setLineDash([]); }
+      if (b) {
+        if (b2Bld === b.id) { c.strokeStyle = Art.C('#fff2a0'); c.lineWidth = 4; Art.rr(c, p[0] - s / 2 - 2, p[1] - s / 2 - 2, s + 4, s + 4, 14); c.stroke(); }
+        txt(c, B.name, p[0], p[1] - 8, 13, Art.ink, 'center', '900');
+        txt(c, 'lv ' + b.level + (b.queue.length ? '  ·  ' + b.queue.length + ' training' : ''), p[0], p[1] + 12, 12, Art.ink, 'center', '700');
+      } else txt(c, 'plot ' + (i + 1), p[0], p[1] + 4, 13, T.text, 'center', '700');
+    }
+  }
+  function drawB2Tray(c) {
+    var T = Art.theme, t = L.tray, cards = cardRects(), i;
+    panel(c, t.x, t.y, t.w, t.h, Art.C(T.panel), 18);
+    for (i = 0; i < 3; i++) {
+      var r = cards[i], key = sim.tray[i], B = key ? F.B2_BUILDINGS[key] : null, can = B && sim.coins >= B.cost && sim.res.wood >= B.wood && sim.res.runes >= B.runes;
+      panel(c, r.x, r.y, r.w, r.h, b2Slot === i ? Art.C(T.gold2) : Art.C(T.panel2), 14);
+      if (B) {
+        txt(c, B.name, r.x + r.w / 2, r.y + 20, 15, T.text, 'center', '800');
+        coinIcon(c, r.x + r.w / 2 - 22, r.y + 40, 9); txt(c, String(B.cost), r.x + r.w / 2 - 10, r.y + 41, 18, can ? T.text : Art.C('#c0392b'), 'left', '900');
+        var extra = (B.wood ? 'wood ' + B.wood : '') + (B.wood && B.runes ? '  ' : '') + (B.runes ? 'runes ' + B.runes : '');
+        if (extra) txt(c, extra, r.x + r.w / 2, r.y + 60, 12, T.text, 'center', '700');
+      }
+    }
+    var rb = b2RefreshRect();
+    panel(c, rb.x, rb.y, rb.w, rb.h, Art.C(T.btn), 12);
+    txt(c, 'new shop: 10', rb.x + rb.w / 2, rb.y + 20, 13, T.text, 'center', '800');
+    txt(c, 'Tap a card, then a plot. Tap a building to train.', t.x + 160, t.y + t.h - 22, 13, T.text, 'left', '600');
+  }
+  function drawB2Popup(c) {
+    if (!b2Bld) return;
+    var b = findB(b2Bld); if (!b) { b2Bld = null; return; }
+    var B = F.B2_BUILDINGS[b.type], R = b2PopupRect(), T = Art.theme, i;
+    c.fillStyle = 'rgba(30,20,10,0.35)'; c.fillRect(0, 0, W, H);
+    panel(c, R.x, R.y, R.w, R.h, Art.C(T.panel), 18);
+    txt(c, B.name + '  ·  level ' + b.level, R.x + 20, R.y + 34, 22, T.text, 'left', '900');
+    txt(c, 'x', R.x + R.w - 28, R.y + 30, 22, T.text, 'center', '900');
+    var q = sim.b2Countdown(b.id);
+    txt(c, q.length ? 'Training: ' + q.map(function (x) { return F.UNITS[x.type].name + ' ' + Math.ceil(x.left) + 's'; }).join('   ') : 'Nothing in training', R.x + 20, R.y + 66, 15, T.text, 'left', '700');
+    if (B.units) B.units.forEach(function (u, k) {
+      var r = b2TrainRect(k), locked = F.b2Unlocked(sim.cfg.ch).indexOf(u) < 0;
+      panel(c, r.x, r.y, r.w, r.h, Art.C(locked ? T.panel2 : T.btn), 14);
+      txt(c, F.UNITS[u].name, r.x + r.w / 2, r.y + 24, 16, T.text, 'center', '800');
+      txt(c, locked ? 'not yet' : 'food ' + F.UNITS[u].cost, r.x + r.w / 2, r.y + 46, 14, T.text, 'center', '700');
+    });
+    var ur = b2UpgradeRect();
+    if (b.level < 3) {
+      panel(c, ur.x, ur.y, ur.w, ur.h, Art.C(T.btn), 14);
+      txt(c, 'Upgrade to level ' + (b.level + 1) + ': ' + 60 * b.level + ' gold, ' + 20 * b.level + ' wood', ur.x + ur.w / 2, ur.y + 31, 15, T.text, 'center', '800');
+    } else txt(c, 'Fully upgraded', ur.x + ur.w / 2, ur.y + 31, 15, T.text, 'center', '800');
+  }
+  // ---- book 3 battle, seen from above: three lanes, units as tokens, flank arrows on the selected one -----------------
+  var b3Sel = 0;
+  function laneH() { return (L.bf.h - 20) / 3; }
+  function laneY(l) { return L.bf.y + 10 + l * laneH() + laneH() / 2; }
+  function drawTopBattle(c) {
+    var T = Art.theme, hh = laneH(), i, l;
+    c.fillStyle = Art.C(T.panel2); c.fillRect(0, L.bf.y, W, L.bf.h);
+    for (l = 0; l < 3; l++) {
+      var y0 = L.bf.y + 10 + l * hh;
+      c.fillStyle = l % 2 ? 'rgba(120,160,80,0.22)' : 'rgba(180,150,90,0.22)'; c.fillRect(0, y0 + 2, W, hh - 4);
+      c.strokeStyle = Art.ink; c.lineWidth = 2; c.setLineDash([10, 8]); c.beginPath(); c.moveTo(0, y0 + hh / 2); c.lineTo(W, y0 + hh / 2); c.stroke(); c.setLineDash([]);
+    }
+    // castle on the left, fortress on the right
+    var cx = 90 - scroll, fx = sim.ebx + 60 - scroll;
+    panel(c, cx - 36, L.bf.y + 10, 72, L.bf.h - 20, Art.C('#3c6fb8'), 10);
+    panel(c, fx - 36, L.bf.y + 10, 72, L.bf.h - 20, Art.C('#8a3b30'), 10);
+    txt(c, 'Fortress ' + Math.round(100 * sim.fort.hp / sim.fort.max) + '%', fx, L.bf.y + 4, 13, T.text, 'center', '800');
+    sim.units.forEach(function (u) {
+      if (u.dead) return;
+      var sx = u.x - scroll, sy = laneY(u.lane), r = u.boss ? 26 : u.champ ? 20 : 15, col = u.side === 'ally' ? '#2d6cdf' : '#d9302a';
+      if (u.state === 'dying') { c.globalAlpha = 0.4; }
+      c.beginPath(); c.arc(sx, sy, r, 0, TAU); c.fillStyle = col; c.fill(); c.lineWidth = 2; c.strokeStyle = Art.ink; c.stroke(); c.globalAlpha = 1;
+      txt(c, (F.UNITS[u.type] ? F.UNITS[u.type].name : u.type).slice(0, 1), sx, sy + 5, 14, '#ffffff', 'center', '900');
+      if (u.side === 'ally') { c.fillStyle = 'rgba(0,0,0,0.3)'; c.fillRect(sx - 14, sy - r - 8, 28, 4); c.fillStyle = '#8fd18a'; c.fillRect(sx - 14, sy - r - 8, 28 * Math.max(0, u.hp / u.max), 4); }
+      if (u.id === b3Sel) { c.beginPath(); c.arc(sx, sy, r + 6, 0, TAU); c.strokeStyle = Art.C('#ffd24a'); c.lineWidth = 3; c.stroke(); }
+    });
+    sim.spikes.forEach(function (sp) {
+      var sx = sp.x - scroll, sy = laneY(sp.lane);
+      c.fillStyle = sp.side === 'ally' ? '#b8844a' : '#7a3b30'; c.strokeStyle = Art.ink; c.lineWidth = 2;
+      for (var k = -2; k <= 2; k++) { c.beginPath(); c.moveTo(sx + k * 12 - 5, sy + 12); c.lineTo(sx + k * 12, sy - 10); c.lineTo(sx + k * 12 + 5, sy + 12); c.closePath(); c.fill(); c.stroke(); }
+    });
+    sim.proj.forEach(function (p) {
+      var f = Math.min(1, p.t / Math.max(0.01, p.dur)), px = p.x0 + (p.x1 - p.x0) * f - scroll;
+      c.beginPath(); c.arc(px, laneY(1), 3, 0, TAU); c.fillStyle = p.side === 'ally' ? '#9fd0ff' : '#ffb0a0'; c.fill();
+    });
+    b3Buttons(c);
+  }
+  function b3Rects() {
+    var y = H - 84, out = {};
+    out.move = { x: 24, y: y, w: 118, h: 36 }; out.attach = { x: 152, y: y, w: 118, h: 36 };
+    out.hide = { x: 280, y: y, w: 118, h: 36 }; out.clear = { x: 408, y: y, w: 118, h: 36 };
+    out.build = { x: W - 150, y: L.bf.y + 6, w: 128, h: 34 };
+    return out;
+  }
+  function b3Buttons(c) {
+    var T = Art.theme, R = b3Rects(), k;
+    panel(c, R.build.x, R.build.y, R.build.w, R.build.h, Art.C(b3Build ? T.gold2 : T.btn), 12);
+    txt(c, b3Build ? 'Close build' : 'Build', R.build.x + R.build.w / 2, R.build.y + 22, 14, T.text, 'center', '800');
+    var su = b3Sel ? sim.units.filter(function (u) { return u.id === b3Sel && !u.dead; })[0] : null;
+    if (!su || su.side !== 'ally') { b3Sel = 0; return; }
+    txt(c, Art.unitName(su.type) + (su.hidden ? ' (hidden)' : su.order ? ' (' + su.order.type + ')' : ''), 24, H - 96, 14, Art.ink, 'left', '800');
+    [['move', 'Move'], ['attach', 'Attach'], ['hide', 'Hide'], ['clear', 'Clear']].forEach(function (p) {
+      var r = R[p[0]], on = b3Mode === p[0];
+      panel(c, r.x, r.y, r.w, r.h, Art.C(on ? T.gold2 : T.btn), 12);
+      txt(c, p[1], r.x + r.w / 2, r.y + 23, 15, T.text, 'center', '800');
+    });
+    if (b3Mode === 'move') txt(c, 'Tap the map to move there (the lane follows the tap)', 24, H - 52, 13, T.text, 'left', '700');
+    if (b3Mode === 'attach') txt(c, 'Tap a friendly unit to follow it', 24, H - 52, 13, T.text, 'left', '700');
+  }
+
+  function b3Tap(x, y) {
+    var R = b3Rects(), su = b3Sel ? sim.units.filter(function (u) { return u.id === b3Sel && !u.dead; })[0] : null;
+    if (hit(R.build, x, y)) { b3Build = !b3Build; layout(); Au.play('tap'); return; }
+    if (su) {
+      if (hit(R.move, x, y)) { b3Mode = 'move'; Au.play('tap'); return; }
+      if (hit(R.attach, x, y)) { b3Mode = 'attach'; Au.play('tap'); return; }
+      if (hit(R.hide, x, y)) { sim.order(su, 'hide'); b3Mode = null; say(Art.unitName(su.type) + ' hides behind the castle'); Au.play('tap'); return; }
+      if (hit(R.clear, x, y)) { sim.order(su, 'clear'); b3Mode = null; Au.play('tap'); return; }
+      if (b3Mode === 'move') {
+        var lane = Math.max(0, Math.min(2, Math.floor((y - L.bf.y - 10) / laneH())));
+        sim.order(su, 'move', { x: x + scroll, lane: lane }); b3Mode = null; Au.play('tap'); return;
+      }
+      if (b3Mode === 'attach') {
+        var other = null, bd = 40; sim.units.forEach(function (u) { if (u.side !== 'ally' || u.dead || u.id === su.id) return; var d = Math.hypot(u.x - scroll - x, laneY(u.lane) - y); if (d < bd) { bd = d; other = u; } });
+        if (other) { sim.order(su, 'follow', { id: other.id }); say(Art.unitName(su.type) + ' follows ' + Art.unitName(other.type)); Au.play('tap'); }
+        b3Mode = null; return;
+      }
+    }
+    var best = null, bd2 = 34;
+    sim.units.forEach(function (u) { if (u.side !== 'ally' || u.dead) return; var d = Math.hypot(u.x - scroll - x, laneY(u.lane) - y); if (d < bd2) { bd2 = d; best = u; } });
+    b3Sel = best ? best.id : 0; b3Mode = null; if (best) Au.play('tap');
+  }
+  function b2Tap(x, y) {
+    if (b2Bld) {
+      var b = findB(b2Bld), R = b2PopupRect();
+      if (b) {
+        var B = F.B2_BUILDINGS[b.type];
+        if (B.units) B.units.forEach(function (u, k) { if (hit(b2TrainRect(k), x, y)) say(trainMsg(sim.b2Train(b.id, u), u)); });
+        if (hit(b2UpgradeRect(), x, y)) say(upgradeMsg(sim.b2Upgrade(b.id)));
+      }
+      if (!hit(R, x, y) || hit({ x: R.x + R.w - 50, y: R.y, w: 50, h: 50 }, x, y)) b2Bld = null;
+      return;
+    }
+    if (sim.book === 3 && y >= L.bf.y) { b3Tap(x, y); return; }
+    var cell = cellAt(x, y);
+    if (cell && cell[1] * 3 + cell[0] < sim.plotX.length) {
+      var plot = cell[1] * 3 + cell[0];
+      if (sim.plotUse[plot]) { b2Bld = sim.plotUse[plot]; Au.play('tap'); return; }
+      if (b2Slot >= 0) { var res = sim.b2Place(b2Slot, plot); if (res === 'ok') { b2Slot = -1; Au.play('place'); } else say(placeMsg(res)); }
+      else say('Tap a building card first, then a plot');
+      return;
+    }
+    var cards = cardRects(), i;
+    for (i = 0; i < 3; i++) if (hit(cards[i], x, y) && sim.tray[i]) { b2Slot = b2Slot === i ? -1 : i; Au.play('tap'); return; }
+    if (hit(b2RefreshRect(), x, y)) { if (!sim.refreshTray()) say('Not enough coins'); else Au.play('tap'); }
+  }
+  function trainMsg(r, u) {
+    var name = F.UNITS[u].name;
+    return r === 'ok' ? name + ' is in training' : r === 'food' ? 'Not enough food for a ' + name : r === 'full' ? 'The queue is full (three)' : r === 'locked' ? name + ' is not unlocked yet' : 'Nothing to train';
+  }
+  function upgradeMsg(r) { return r === 'ok' ? 'Upgraded' : r === 'poor' ? 'Not enough gold or wood' : 'Fully upgraded'; }
+  function placeMsg(r) { return r === 'poor' ? 'Not enough gold, wood or runes' : r === 'blocked' ? 'That plot is taken' : 'Nothing to place'; }
+  function book2Unlocked(ch, lv) { var idx = (ch - 1) * 3 + (lv - 1); if (idx === 0) return true; var p = idx - 1, pc = Math.floor(p / 3) + 1, pl = p % 3 + 1; return (P.stars['b2c' + pc + 'l' + pl] || 0) > 0; }
+
   // ---- input --------------------------------------------------------------------------------------
   function toLogical(e) { var r = cv.getBoundingClientRect(); return [(e.clientX - r.left - OX) / SC, (e.clientY - r.top - OY) / SC]; }
   function hit(b, x, y) { return x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h; }
@@ -433,6 +636,7 @@
     try { cv.setPointerCapture(e.pointerId); } catch (er) { /* ignore */ }
     for (i = 0; i < hudBtns.length; i++) if (hit(hudBtns[i], x, y)) { hudBtns[i].down = true; drag = { kind: 'btn', btn: hudBtns[i], x: x, y: y }; return; }
     if (paused) return;
+    if (sim.hasBuildings) { drag = { kind: 'b2', x: x, y: y, sx: x, sy: y, moved: false }; return; }
     var cards = cardRects();
     for (i = 0; i < 3; i++) if (sim.tray[i] && hit(cards[i], x, y)) { drag = { kind: 'card', slot: i, x: x, y: y, sx: x, sy: y, moved: false }; return; }
     var cell = cellAt(x, y);
@@ -453,6 +657,7 @@
   function endDrag(e) {
     if (!drag) return; var d = drag; drag = null; var p = toLogical(e), x = p[0], y = p[1];
     if (d.kind === 'btn') { d.btn.down = false; if (hit(d.btn, x, y)) onButton(d.btn.id); return; }
+    if (d.kind === 'b2') { if (!d.moved) b2Tap(x, y); return; }
     var cell = cellAt(x, y), tray = L.tray, inTray = x >= tray.x && x <= tray.x + tray.w && y >= tray.y && y <= tray.y + tray.h;
     if (d.kind === 'card') {
       if (!d.moved) { selSlot = selSlot === d.slot ? -1 : d.slot; selGear = 0; Au.play('tap'); if (selSlot >= 0) { var sp = F.trayParts(sim.tray[selSlot]); setInfoFor(sp.type, sp.level, 'Tap a free peg to place it.'); } return; }
@@ -536,6 +741,43 @@
       card.appendChild(row); box.appendChild(card);
       requestAnimationFrame(function () { try { portrait(cvs, C.n, 260, 120, false); } catch (e) { GW.err('Portrait', e); } });
     });
+    // book 2: opens when chapter 10 of book 1 is beaten; its chapters use buildings and resources
+    var b2h = document.createElement('h2'); b2h.id = 'book2Head'; b2h.textContent = 'Book 2: The Gear Works'; box.appendChild(b2h);
+    if (+S.preview || P.stars.c10l3 > 0) { var e2 = document.createElement('button'); e2.type = 'button'; e2.className = 'lvBtn'; e2.textContent = 'Endless · best wave ' + (P.freeBest2 || 0);
+      e2.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.b2FreeConfig({ quick: +S.quick, mode: S.mode })); }); box.appendChild(e2); }
+    if (!(+S.preview || P.stars.c10l3 > 0)) { var lk = document.createElement('p'); lk.textContent = 'Locked: beat chapter 10 to open book 2 (or turn on Preview in the settings).'; box.appendChild(lk); }
+    else F.B2_CHAPTERS.forEach(function (C) {
+      var card = document.createElement('section'); card.className = 'chapter';
+      var h = document.createElement('h3'); h.textContent = C.n + '. ' + C.title + '  (' + Art.unitName(C.unit) + ')'; card.appendChild(h);
+      var row = document.createElement('div'); row.className = 'lvRow';
+      for (var lv = 1; lv <= 3; lv++) (function (lv) {
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'lvBtn'; var id = 'b2c' + C.n + 'l' + lv, st = P.stars[id] || 0, ok = !!(+S.preview) || book2Unlocked(C.n, lv);
+        b.disabled = !ok; b.setAttribute('aria-label', 'Book 2 chapter ' + C.n + ' level ' + lv);
+        b.innerHTML = '<span class="lvNum">' + (lv === 3 ? '♛' : lv) + '</span><span class="lvStars">' + (ok ? '★'.repeat(st) + '☆'.repeat(3 - st) : '🔒') + '</span>';
+        b.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.b2Config(C.n, lv, { quick: +S.quick, mode: S.mode })); });
+        row.appendChild(b);
+      })(lv);
+      card.appendChild(row); box.appendChild(card);
+    });
+    // book 3: the Lanes, after book 2 chapter 15
+    var b3h = document.createElement('h2'); b3h.id = 'book3Head'; b3h.textContent = 'Book 3: The Lanes'; box.appendChild(b3h);
+    if (+S.preview || P.stars.b2c15l3 > 0) { var e3 = document.createElement('button'); e3.type = 'button'; e3.className = 'lvBtn'; e3.textContent = 'Endless · best wave ' + (P.freeBest3 || 0);
+      e3.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.b3FreeConfig({ quick: +S.quick, mode: S.mode })); }); box.appendChild(e3); }
+    if (!(+S.preview || P.stars.b2c15l3 > 0)) { var lk3 = document.createElement('p'); lk3.textContent = 'Locked: beat book 2 to open book 3 (or turn on Preview in the settings).'; box.appendChild(lk3); }
+    else for (var b3c = 1; b3c <= 10; b3c++) (function (n) {
+      var card = document.createElement('section'); card.className = 'chapter';
+      var h = document.createElement('h3'); h.textContent = n + '. ' + F.B3_CHAPTERS[n - 1].title; card.appendChild(h);
+      var row = document.createElement('div'); row.className = 'lvRow';
+      for (var lv = 1; lv <= 3; lv++) (function (lv) {
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'lvBtn'; var idx = (n - 1) * 3 + (lv - 1), id = 'b3c' + n + 'l' + lv, st = P.stars[id] || 0;
+        var ok = !!(+S.preview) || idx === 0 || (P.stars['b3c' + (Math.floor((idx - 1) / 3) + 1) + 'l' + ((idx - 1) % 3 + 1)] || 0) > 0;
+        b.disabled = !ok; b.setAttribute('aria-label', 'Book 3 chapter ' + n + ' level ' + lv);
+        b.innerHTML = '<span class="lvNum">' + (lv === 3 ? '♛' : lv) + '</span><span class="lvStars">' + (ok ? '★'.repeat(st) + '☆'.repeat(3 - st) : '🔒') + '</span>';
+        b.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.b3Config(n, lv, { quick: +S.quick, mode: S.mode })); });
+        row.appendChild(b);
+      })(lv);
+      card.appendChild(row); box.appendChild(card);
+    })(b3c);
     $('freeBest').textContent = P.freeBest ? 'best: wave ' + P.freeBest : '';
     show('map'); if (window.AppNotes) AppNotes.setContext({ item: 'map', label: 'Campaign map' });
   }
@@ -563,7 +805,7 @@
   function startLevel() {
     Au.stopSay();
     var c = cfg; var bonus = Math.min(60, (P.fails[c.id] || 0) * 20);
-    var fresh = c.free ? F.freeConfig({ quick: +S.quick, mode: S.mode }) : F.levelConfig(c.ch, c.lv, { quick: +S.quick, mode: S.mode }); fresh.coins += bonus; fresh.story = c.story;
+    var fresh = nextCfg(c, 0); fresh.coins += bonus; fresh.story = c.story;
     makeSim(fresh); show('play'); Au.init(); Au.mood('calm', fresh.ch);
     if (bonus) say('A few extra coins this time: +' + bonus);
     if (window.AppNotes) AppNotes.setContext({ item: fresh.id, label: fresh.title + ' ' + levelLabel() });
@@ -573,16 +815,16 @@
     ended = false; var win = sim.status === 'won', stars = sim.stars(), id = cfg.id;
     if (win && !cfg.free) { P.stars[id] = Math.max(P.stars[id] || 0, stars); P.fails[id] = 0; }
     if (!win && !cfg.free) P.fails[id] = (P.fails[id] || 0) + 1;
-    if (cfg.free) P.freeBest = Math.max(P.freeBest, sim.waveIdx + 1);
+    if (cfg.free) { var fk = cfg.book ? 'freeBest' + cfg.book : 'freeBest'; P[fk] = Math.max(P[fk] || 0, sim.waveIdx + 1); }
     saveProgress();
     var R = $('screenResult');
     $('resTitle').textContent = cfg.free ? 'Waves held: ' + Math.max(0, sim.waveIdx) : win ? 'The fortress falls!' : 'The Horde got through';
     $('resStars').textContent = win ? '★'.repeat(stars) + '☆'.repeat(3 - stars) : '';
     $('resStars').hidden = !win;
-    $('resText').textContent = cfg.free ? 'Best: wave ' + P.freeBest : win ? 'Lives left ' + sim.lives + ' of ' + sim.maxLives + ' · Coins earned ' + sim.earned + ' · Enemies beaten ' + sim.kills
+    $('resText').textContent = cfg.free ? 'Best: wave ' + (P[bestKey(cfg)] || 0) : win ? 'Lives left ' + sim.lives + ' of ' + sim.maxLives + ' · Coins earned ' + sim.earned + ' · Enemies beaten ' + sim.kills
       : 'Next time you start with a few extra coins. Try other gears, or merge to make stronger fighters.';
     var nxt = $('resNext'), idx = cfg.idx;
-    nxt.hidden = !(win && !cfg.free && idx < 23);
+    nxt.hidden = !(win && !cfg.free && (cfg.book === 2 ? idx < 44 : cfg.book === 3 ? idx < 29 : true));
     $('resRetry').textContent = win ? 'Play again' : 'Try again';
     show('result');
     if (win && !cfg.free) setTimeout(function () { for (var i = 0; i < stars; i++) (function (i) { setTimeout(function () { Au.play('star', i); }, i * 260); })(i); }, 200);
@@ -600,6 +842,7 @@
     var br2 = $('bossRevs'); if (br2) { br2.value = S.bossRevs; $('bossRevsVal').textContent = '1 : ' + S.bossRevs; }
     F.BOSS_REVS = +S.bossRevs || 20;
     var am = $('armyMax'); if (am) { am.value = S.armyMax; $('armyMaxVal').textContent = S.armyMax; }
+    var cm = $('champMax'); if (cm) { cm.value = S.champMax; $('champMaxVal').textContent = S.champMax; }
     var hs = $('heartSpeed'); if (hs) { hs.value = S.heartSpeed; $('heartSpeedVal').textContent = '×' + (+S.heartSpeed).toFixed(2).replace(/0$/, ''); }
     Art.setTheme(S.theme); Au.setVolumes(+S.sfx, +S.music);
     if (sim) sim.specialty = Art.specialty();
@@ -629,6 +872,8 @@
     GW.applyFun = applyFun;
     var br = $('bossRevs');
     br.addEventListener('input', function () { S.bossRevs = +br.value; F.BOSS_REVS = S.bossRevs; saveSettings(); $('bossRevsVal').textContent = '1 : ' + S.bossRevs; });
+    var cm2 = $('champMax');
+    if (cm2) cm2.addEventListener('input', function () { S.champMax = +cm2.value; saveSettings(); $('champMaxVal').textContent = S.champMax; if (sim) sim.maxChamps = S.champMax; });
     var am2 = $('armyMax');
     am2.addEventListener('input', function () { S.armyMax = +am2.value; saveSettings(); $('armyMaxVal').textContent = S.armyMax; if (sim && cfg.free) { sim.maxArmy = S.armyMax; sim.maxEnemy = Math.ceil(S.armyMax * F.freeFoe(cfg.mode)); } });
     var hs = $('heartSpeed');
@@ -641,7 +886,21 @@
     });
     $('btnFree').addEventListener('click', function () { $('drawer').hidden = true; Au.init(); showStory(F.freeConfig({ quick: +S.quick, mode: S.mode })); });
     $('btnMap').addEventListener('click', function () { $('drawer').hidden = true; leaveLevel(); showMap(); });
-    $('btnCheat').addEventListener('click', function () { if (sim && screen === 'play') { sim.coins += 25; Au.play('coin'); } else say('Start a level first'); });
+    $('jump1').addEventListener('click', function () { var m = $('mapGrid'); if (m && m.scrollIntoView) m.scrollIntoView(); });
+    $('jump2').addEventListener('click', function () { var el = $('book2Head'); if (el && el.scrollIntoView) el.scrollIntoView(); });
+    $('jump3').addEventListener('click', function () { var el = $('book3Head'); if (el && el.scrollIntoView) el.scrollIntoView(); });
+    function openBook(n) { S.preview = 1; saveSettings(); syncSettings(); $('drawer').hidden = true; leaveLevel(); showMap(); var el = $('book' + n + 'Head'); if (el && el.scrollIntoView) el.scrollIntoView(); }
+    $('btnBook2').addEventListener('click', function () { openBook(2); });
+    $('btnBook3').addEventListener('click', function () { openBook(3); });
+    // the coin cheat is about the price of one new gear (book 1) or building (books 2 and 3), at least 25
+    function cheatAmount() {
+      if (!sim || screen !== 'play') return 25;
+      var costs = sim.tray.filter(Boolean).map(function (t) { return sim.hasBuildings ? F.B2_BUILDINGS[t].cost : sim.priceOf(t); });
+      if (!costs.length) return 25;
+      return Math.max(25, Math.round(costs.reduce(function (a, b) { return a + b; }, 0) / costs.length / 5) * 5);
+    }
+    setInterval(function () { $('btnCheat').textContent = '+' + cheatAmount() + ' coins'; }, 500);
+    $('btnCheat').addEventListener('click', function () { if (sim && screen === 'play') { sim.coins += cheatAmount(); Au.play('coin'); } else say('Start a level first'); });
     $('btnReset').addEventListener('click', function () {
       if (!window.confirm('Erase all stars and progress on this device?')) return;
       P.stars = {}; P.fails = {}; P.freeBest = 0; saveProgress(); $('drawer').hidden = true; showMap();
@@ -649,8 +908,8 @@
     $('storyPlay').addEventListener('click', function () { Au.init(); startLevel(); });
     $('storyBack').addEventListener('click', function () { Au.stopSay(); showMap(); });
     $('storyListen').addEventListener('click', function () { if (Au.speaking()) { Au.stopSay(); listenState(false); } else playNarration(); });
-    $('resNext').addEventListener('click', function () { var i = cfg.idx + 1, ch = Math.floor(i / 3) + 1, lv = i % 3 + 1; showStory(F.levelConfig(ch, lv, { quick: +S.quick, mode: S.mode })); });
-    $('resRetry').addEventListener('click', function () { showStory(cfg.free ? F.freeConfig({ quick: +S.quick, mode: S.mode }) : F.levelConfig(cfg.ch, cfg.lv, { quick: +S.quick, mode: S.mode })); });
+    $('resNext').addEventListener('click', function () { showStory(nextCfg(cfg, 1)); });
+    $('resRetry').addEventListener('click', function () { showStory(nextCfg(cfg, 0)); });
     $('resMap').addEventListener('click', function () { showMap(); });
     $('mapFree').addEventListener('click', function () { Au.init(); showStory(F.freeConfig({ quick: +S.quick, mode: S.mode })); });
     $('verInfo').textContent = 'Felix Gear Wars ' + F.version;

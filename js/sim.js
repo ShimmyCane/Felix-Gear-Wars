@@ -27,7 +27,7 @@
     this.leaks = 0; this.kills = 0; this.earned = 0; this.spent = 0; this.undo = [];
     this.es = F.enemyScale(cfg.idx);
     // With each kind of enemy capped, a bigger press cannot add more of them, so it also makes them tougher: health and attack grow with the square root of the press (above 1).
-    this.es.foe = Math.sqrt(Math.max(1, F.modePress(cfg.mode, cfg.idx)));
+    this.es.foe = Math.sqrt(Math.max(1, F.modePress(cfg.mode, cfg.idx, cfg.book)));
     var qk = cfg.quick ? 0.6 : 1;                // Quick game squeezes the whole hill
     var pace = F.modePace(cfg.mode);            // medium and hard: more time between waves, a longer hill
     this.pace = pace;
@@ -39,7 +39,14 @@
     this.startT = 0; this.faded = false;
     this.specialty = o.specialty || null;      // the culture's starred fighter (+25%); the screen sets it
     this.pool = cfg.pool.concat(cfg.specials || []);
-    F.multTiers(cfg.free ? 0 : cfg.ch).forEach(function (v) { this.pool.push('mult@' + v); }, this);
+    // book 2: resources, buildings on plots, unit queues and terrain (no multipliers, no pegboard)
+    this.book = cfg.book || 0; this.terrain = cfg.terrain || [];
+    this.spikes = []; this.hasBuildings = this.book === 2 || this.book === 3; this.lanes = cfg.lanes || 1;   // book 3: three lanes seen from above
+    this.res = Object.assign({ food: 0, wood: 0, runes: 0 }, cfg.res || {});
+    this.buildings = []; this.plotUse = {}; this.plotX = [];
+    for (var pi = 0; pi < (cfg.plots || 0); pi++) this.plotX.push(180 + pi * 100);
+    if (!this.book) F.multTiers(cfg.free ? 0 : cfg.ch).forEach(function (v) { this.pool.push('mult@' + v); }, this);
+    this.maxChamps = o.champMax || F.MAX_CHAMPIONS;                                                       // the player's champions on the map at once
     this.maxArmy = cfg.free ? (o.armyMax || F.FREE_ARMY) : F.MAX_UNITS;                                  // free-for-all: 25 by default, up to 50 in the settings
     this.maxEnemy = cfg.free ? Math.ceil(this.maxArmy * F.freeFoe(cfg.mode)) : F.MAX_UNITS;             // the enemy army: 1x, 2x or 3x yours by mode
     this.tray = [null, null, null];
@@ -210,17 +217,40 @@
       var gain = {}; this.sideGain[s] = gain;
       var first = this.gearAt(this.heart.c + DIRS[s][0], this.heart.r + DIRS[s][1]);
       if (!first) continue;
+      // distance from the heart along the chain: boosts only flow outward, so a loop cannot compound
+      var dist = {}, order = [first], qi = 0;
+      dist[first.id] = 0;
+      while (qi < order.length) {
+        var gq = order[qi++];
+        for (var dq = 0; dq < 4; dq++) {
+          var qc = gq.c + DIRS[dq][0], qr = gq.r + DIRS[dq][1];
+          if (self.isHeart(qc, qr)) continue;
+          var hq = self.gearAt(qc, qr);
+          if (hq && dist[hq.id] === undefined) { dist[hq.id] = dist[gq.id] + 1; order.push(hq); }
+        }
+      }
       gain[first.id] = 1;
-      var queue = [first];
-      while (queue.length) {
-        var g = queue.shift();
-        var out = Math.min(F.MULTCAP, gain[g.id] * (g.type === 'mult' ? F.MULTV[g.level - 1] : 1));
+      for (var oi = 0; oi < order.length; oi++) {
+        var g = order[oi];
+        // a 4x or 8x multiplier speeds up everything after it on the chain by a tenth of its extra (8x is 1.7 times, not 8)
+        var chain = (g.type === 'mult' && F.MULTV[g.level - 1] >= 4) ? 1 + 0.1 * (F.MULTV[g.level - 1] - 1) : 1;
+        var out = Math.min(F.MULTCAP, gain[g.id] * chain);
         for (var d = 0; d < 4; d++) {
           var nc = g.c + DIRS[d][0], nr = g.r + DIRS[d][1];
           if (self.isHeart(nc, nr)) continue;
           var h = self.gearAt(nc, nr);
-          if (h && (gain[h.id] || 0) < out) { gain[h.id] = out; queue.push(h); }
+          if (h && dist[h.id] === dist[g.id] + 1 && (gain[h.id] || 0) < out) gain[h.id] = out;
         }
+      }
+      // a 1x or 2x multiplier speeds up only the gears right next to it, and does not pass the boost on
+      for (var id2 in gain) {
+        var gg2 = this.gearById(+id2); if (gg2.type === 'mult') continue;
+        var adj = 1;
+        for (var d2 = 0; d2 < 4; d2++) {
+          var nb = this.gearAt(gg2.c + DIRS[d2][0], gg2.r + DIRS[d2][1]);
+          if (nb && nb.type === 'mult' && F.MULTV[nb.level - 1] < 4 && gain[nb.id]) adj = Math.max(adj, F.MULTV[nb.level - 1]);
+        }
+        gain[id2] = Math.min(F.MULTCAP, gain[id2] * adj);
       }
       for (var id in gain) { var gg = this.gearById(+id); gg.rate += gain[id]; gg.gmax = Math.max(gg.gmax, gain[id]); gg.active = true; }
     }
@@ -248,6 +278,7 @@
     return pool[0];
   };
   P.rollTray = function () {
+    if (this.hasBuildings) { var bs = F.b2Buildings(this.cfg.ch, this.book); for (var bi = 0; bi < 3; bi++) this.tray[bi] = bs[Math.floor(this.rnd() * bs.length)]; return; }
     for (var i = 0; i < 3; i++) this.tray[i] = this.rollOne();
     // always offer at least one fighter so a tray is never all specials
     if (!this.tray.some(function (t) { return F.UNITS[F.trayParts(t).type]; })) this.tray[0] = this.cfg.pool[this.cfg.pool.length - 1];
@@ -321,6 +352,7 @@
   // How strong is Felix right now, and how strong will he be by the time a wave arrives? In "spearman power" units.
   P.playerPower = function (window) {
     var p = 0, i, u, g, need, perSec = 4 / this.heartPeriod;
+    if (this.hasBuildings) { for (i = 0; i < this.buildings.length; i++) { var bb = this.buildings[i]; var BB = F.B2_BUILDINGS[bb.type]; if (BB.kind === 'unit') p += F.unitPower(BB.units[0]) * window / F.b2UnitTime(BB.units[0]) * (1 + 0.25 * (bb.level - 1)); } }
     for (i = 0; i < this.units.length; i++) {
       u = this.units[i]; if (u.side !== 'ally' || u.dead || u.state === 'dying') continue;
       p += F.unitPower(u.type) * (u.champ ? F.SM[0] * 1.6 : F.SM[u.level - 1]) * Math.max(0.2, u.hp / u.max) * (u.special ? F.SPECIALTY_BONUS : 1);
@@ -337,7 +369,7 @@
   P.makeWave = function (k) {
     var cfg = this.cfg, t = Math.max(0, this.t - this.startT), tm = t / 60, c, ratio;
     if (cfg.free) { c = Math.min(1, 0.4 + 0.08 * k); ratio = F.freeFoe(cfg.mode) * Math.min(1, 0.25 + 0.75 * k / 25) * this.fun.ch; }   // climbs over 25 waves to 1x, 2x or 3x the value of your army
-    else { c = F.funCurve(tm, this.fun.peak / 60, this.fun.fade / 60); ratio = (F.TUNE.rLow + (F.TUNE.rPeak - F.TUNE.rLow) * c) * (1 + F.TUNE.rIdx * Math.min(1, cfg.idx / 23)) * (cfg.len || 1) * this.fun.ch * F.modePress(cfg.mode, cfg.idx); }
+    else { c = F.funCurve(tm, this.fun.peak / 60, this.fun.fade / 60); ratio = (F.TUNE.rLow + (F.TUNE.rPeak - F.TUNE.rLow) * c) * (1 + F.TUNE.rIdx * Math.min(1, cfg.idx / 23)) * (cfg.len || 1) * this.fun.ch * F.modePress(cfg.mode, cfg.idx, cfg.book); }
     var es = this.es, scale = Math.sqrt(es.hp * es.atk), pool = cfg.pool, i;
     var E = this.playerPower(Math.min(30, this.gap)) * ratio;
     var floor = F.unitPower(pool[0]) * scale * (k === 0 ? 2 : 1.5);
@@ -349,7 +381,7 @@
     var list = [], got = 0, guard = 0;
     var lv = F.enemyLevel(c, cfg.idx);           // the Horde trains: its gears get stronger along the fun curve
     // a wave holds up to 26 fighters at press 1; harder modes allow bigger waves (the cap grows with the square root of the press)
-    var cap = cfg.free ? this.maxEnemy : Math.round(F.WAVE_BASE * Math.max(1, Math.sqrt(F.modePress(cfg.mode, cfg.idx))));
+    var cap = cfg.free ? this.maxEnemy : Math.round(F.WAVE_BASE * Math.max(1, Math.sqrt(F.modePress(cfg.mode, cfg.idx, cfg.book))));
     while (got < E && list.length < cap && guard++ < 160) {
       var tp = F.weightedPick(this.rnd, types); list.push({ type: tp, boss: false, level: lv }); got += F.unitPower(tp) * scale * F.SM[lv - 1];
     }
@@ -379,7 +411,7 @@
     var u = { id: this.nid++, side: side, type: type, level: level, boss: !!boss, x: x, y: this.rnd() * 52, hp: hp, max: hp, atk: atk, def: def,
       range: d.range * (boss || level >= F.BIG_LEVEL ? 1.25 : 1), big: level >= F.BIG_LEVEL, minRange: d.minRange || 0, speed: spd, cdMax: d.cd, cd: 0.3 + this.rnd() * 0.4, state: 'fall', t: 0,
       anim: 'fall', at: 0, hitDone: false, special: special, champ: !!d.champ, fly: !!d.fly, slow: 0, healT: 1.2, tgt: 0, dir: side === 'ally' ? 1 : -1, scale: sc, charged: false, flash: 0, phase: this.rnd() * 6.28, dead: false, vx: 0 };
-    this.units.push(u); return u;
+    u.lane = 0; this.units.push(u); return u;
   };
 
   function dmgFrom(atk, a, t, d) {   // a = attacker spec {type, atk, magic}, t = target unit, d = data
@@ -402,6 +434,11 @@
       var g = src.group; g.kills++;
       if ((src.grows || 0) < 4) { src.grows = (src.grows || 0) + 1; var oldMax = src.max; src.max *= 1.25; src.hp += 0.25 * oldMax; src.atk *= 1.15; }
       if (g.kills >= 5) this.reformBlob(g);
+    }
+    // a stoneguard at level four or more traps the enemies near it as it falls
+    if (t.type === 'stoneguard' && t.side === 'ally' && t.level >= 4) {
+      this.units.forEach(function (o) { if (o.side === 'enemy' && !o.dead && !o.champ && !o.boss && Math.abs(o.x - t.x) <= 120) o.slow = Math.max(o.slow || 0, 3); });
+      this.emit({ k: 'trap', x: t.x, y: t.y });
     }
     // a necromancer raises the enemy that just fell, if one is near and ready
     if (t.side === 'enemy' && !t.champ && !t.boss && !t.bit) {
@@ -427,6 +464,8 @@
     var D = F.UNITS[u.type];
     for (i = 0; i < foes.length; i++) {
       o = foes[i]; dx = Math.abs(o.x - u.x);
+      if (this.lanes > 1 && Math.abs(o.lane - u.lane) > (D.kind === 'ranged' ? 1 : 0)) continue;   // book 3: fighters reach their own lane, archers the next one
+      if (o.hidden) continue;                                     // a hidden unit cannot be targeted
       if (o.fly && D.kind === 'melee' && !u.fly) continue;       // spears cannot reach a dragon
       if (u.minRange && dx < u.minRange) continue;
       var reach = D.hunts ? 480 : Math.max(u.range, 150);
@@ -492,6 +531,155 @@
     return false;
   };
   // ---- the blob: splits into ten bits, five kills reform it; only one blob at a time ----------------------------
+  // ---- book 3: lanes seen from above; a fighter can flank into the next lane ---------------------------------------
+  P.flank = function (u, dl) {
+    if (!(this.lanes > 1) || u.side !== 'ally' || u.dead || u.state === 'dying' || u.state === 'fall') return 'no';
+    var nl = u.lane + dl;
+    if (nl < 0 || nl >= this.lanes) return 'edge';
+    if ((u.flankCD || 0) > 0) return 'cool';
+    u.lane = nl; u.flankCD = u.type === 'flanker' ? 1.5 : 6; u.flankT = 0.5;
+    this.emit({ k: 'flank', x: u.x, y: u.y, lane: nl });
+    return 'ok';
+  };
+  // ---- book 3's new characters ---------------------------------------------------------------------------------------
+  // in the same lane (or the next one, for ranged units), an enemy the unit can reach
+  P.laneFoes = function (u, range) {
+    var out = [], fs = this.foes(u);
+    for (var i = 0; i < fs.length; i++) { var f = fs[i]; if (Math.abs(f.x - u.x) <= range && (this.lanes <= 1 || Math.abs(f.lane - u.lane) <= 1)) out.push(f); }
+    return out;
+  };
+  // Freezer: slows up to three enemies to a crawl every five seconds. From level three it picks the most dangerous ones.
+  P.freezeWork = function (u, dt) {
+    u.frT = (u.frT || 0) - dt; if (u.frT > 0) return;
+    var list = this.laneFoes(u, 260).filter(function (f) { return !f.boss && !f.champ; });
+    if (!list.length) { u.frT = 0.5; return; }
+    list.sort(function (a, b) { return u.level >= 3 ? b.atk - a.atk : Math.abs(a.x - u.x) - Math.abs(b.x - u.x); });
+    list.slice(0, 3).forEach(function (f) { f.slow = Math.max(f.slow || 0, 2.2); });
+    u.frT = 5;
+    this.emit({ k: 'freeze', x: u.x, y: u.y });
+  };
+  // Summoner: summons a stoneguard every ten seconds (two at a time). A stoneguard whose summoner has fallen keeps summoning, every fifteen seconds.
+  P.summonWork = function (u, dt) {
+    var parentAlive = !!u.parent && this.units.some(function (o) { return o.id === u.parent && !o.dead && o.state !== 'dying'; });
+    if (u.type === 'stoneguard' && parentAlive) return;
+    u.smT = (u.smT || 0) - dt; if (u.smT > 0) return;
+    var guards = this.units.filter(function (o) { return o.side === 'ally' && o.type === 'stoneguard' && !o.dead && o.state !== 'dying'; }).length;
+    if (guards >= 8) { u.smT = 2; return; }
+    if (u.type === 'summoner') { var mine = this.units.filter(function (o) { return o.parent === u.id && !o.dead; }).length; if (mine >= 2) { u.smT = 2; return; } }
+    var g = this.makeUnit('ally', 'stoneguard', u.level || 1, u.x + (this.rnd() - 0.5) * 30, false);
+    g.parent = u.type === 'summoner' ? u.id : (u.parent || 0); g.lane = u.lane; g.state = 'fall';
+    u.smT = u.type === 'summoner' ? 10 : 15;
+    this.emit({ k: 'summon', x: u.x, y: u.y, unit: g.id });
+  };
+  // Builder: places a spike wall just ahead in its lane every twelve seconds (up to three of them, each lasting 30 seconds).
+  P.buildWork = function (u, dt) {
+    u.bdT = (u.bdT || 0) - dt; if (u.bdT > 0) return;
+    var mine = this.spikes.filter(function (s) { return s.side === u.side && s.lane === u.lane; }).length;
+    if (mine >= F.B3_SPIKE.max) { u.bdT = 2; return; }
+    this.spikes.push({ x: u.x + 60, lane: u.lane, side: u.side, t: F.B3_SPIKE.life });
+    u.bdT = F.B3_SPIKE.every;
+    this.emit({ k: 'build', x: u.x + 60, y: u.y });
+  };
+  P.spikesWork = function (dt) {
+    for (var i = this.spikes.length - 1; i >= 0; i--) {
+      var sp = this.spikes[i]; sp.t -= dt; if (sp.t <= 0) { this.spikes.splice(i, 1); continue; }
+      var self = this;
+      this.units.forEach(function (o) {
+        if (o.side === sp.side || o.dead || o.state === 'dying' || o.state === 'fall') return;
+        if (this.lanes > 1 && o.lane !== sp.lane) return;
+        if (Math.abs(o.x - sp.x) <= F.B3_SPIKE.radius) self.hurt(o, F.B3_SPIKE.dps * dt, null);
+      }, this);
+    }
+  };
+
+  // ---- commands in book 3: a unit moves, follows another unit, or hides behind the castle; otherwise it fights on its own
+  P.order = function (u, type, o) {
+    if (!u || u.side !== 'ally' || u.dead) return 'none';
+    u.hidden = false;
+    if (type === 'clear') { u.order = null; return 'ok'; }
+    if (type === 'hide') { u.order = { type: 'hide', x: 150, lane: u.lane }; return 'ok'; }
+    if (type === 'move') { u.order = { type: 'move', x: Math.max(120, Math.min(this.world - 60, o.x)), lane: o.lane }; return 'ok'; }
+    if (type === 'follow') { var t = this.units.filter(function (x) { return x.id === o.id && !x.dead && x.id !== u.id; })[0]; if (!t) return 'none'; u.order = { type: 'follow', id: t.id, x: t.x, lane: t.lane }; return 'ok'; }
+    return 'none';
+  };
+  P.runOrder = function (u, dt) {
+    var o = u.order;
+    if (o.type === 'follow') { var t = this.units.filter(function (x) { return x.id === o.id && !x.dead && x.state !== 'dying'; })[0]; if (!t) { u.order = null; return false; } o.x = t.x; o.lane = t.lane; }
+    u.lane = o.lane;
+    var dx = o.x - u.x, reach = o.type === 'follow' ? 70 : 6;
+    if (Math.abs(dx) <= reach) {
+      if (o.type === 'hide') { u.hidden = true; u.anim = 'idle'; return true; }
+      if (o.type === 'move') { u.order = null; return false; }
+      return false;                                              // following: fights with the unit it is attached to
+    }
+    var step = Math.min(Math.abs(dx), u.speed * dt * (u.slow > 0 ? 0.4 : 1)) * Math.sign(dx);
+    u.x += step; u.dir = Math.sign(dx) || u.dir; u.anim = 'walk';
+    return true;
+  };
+
+  // ---- book 2: buildings, resources and unit queues ---------------------------------------------------------------
+  P.terrainAt = function (x) { for (var i = 0; i < this.terrain.length; i++) { var z = this.terrain[i]; if (x >= z.x0 && x <= z.x1) return z.kind; } return null; };
+  P.missileMul = function (x) { var k = this.terrainAt(x); return k === 'trees' ? 0.5 : k === 'marsh' ? 0.85 : 1; };
+  P.b2Place = function (slot, plot) {
+    var key = this.tray[slot], B = F.B2_BUILDINGS[key];
+    if (!this.hasBuildings || !B) return 'none';
+    if (this.plotUse[plot] || plot < 0 || plot >= this.plotX.length) return 'blocked';
+    if (this.coins < B.cost) return 'poor';
+    if (this.res.wood < B.wood || this.res.runes < B.runes) return 'poor';
+    this.coins -= B.cost; this.res.wood -= B.wood; this.res.runes -= B.runes; this.spent += B.cost;
+    var b = { id: this.nid++, type: key, plot: plot, x: this.plotX[plot], lane: Math.floor(plot / 3), level: 1, queue: [], kind: B.kind };
+    this.buildings.push(b); this.plotUse[plot] = b.id;
+    this.tray[slot] = this.b2Shop(slot);
+    this.emit({ k: 'place', id: b.id });
+    return 'ok';
+  };
+  P.b2Shop = function (slot) { var bs = F.b2Buildings(this.cfg.ch, this.book); return bs[Math.floor(this.rnd() * bs.length)]; };
+  P.b2Train = function (bid, unit) {
+    var b = this.buildings.filter(function (x) { return x.id === bid; })[0];
+    if (!b || b.kind !== 'unit') return 'none';
+    if (F.B2_BUILDINGS[b.type].units.indexOf(unit) < 0 || F.unlockedFor(this.cfg).indexOf(unit) < 0) return 'locked';
+    if (b.queue.length >= 3) return 'full';
+    var cost = F.UNITS[unit].cost;
+    if (this.res.food < cost) return 'food';
+    this.res.food -= cost;
+    b.queue.push({ type: unit, left: F.b2UnitTime(unit) / (1 + 0.25 * (b.level - 1)), total: F.b2UnitTime(unit) / (1 + 0.25 * (b.level - 1)) });
+    return 'ok';
+  };
+  P.b2Upgrade = function (bid) {
+    var b = this.buildings.filter(function (x) { return x.id === bid; })[0];
+    if (!b || b.level >= 3) return 'none';
+    var gold = 60 * b.level, wood = 20 * b.level;
+    if (this.coins < gold || this.res.wood < wood) return 'poor';
+    this.coins -= gold; this.res.wood -= wood; this.spent += gold; b.level++;
+    return 'ok';
+  };
+  P.b2Tick = function (dt) {
+    var i, b, B;
+    for (i = 0; i < this.buildings.length; i++) {
+      b = this.buildings[i]; B = F.B2_BUILDINGS[b.type];
+      if (B.kind === 'res') {
+        var made = B.rate * (1 + 0.5 * (b.level - 1)) * dt;
+        if (B.makes === 'gold') this.coins += made; else this.res[B.makes] += made;
+        this.earned += B.makes === 'gold' ? made : 0;
+      } else if (b.queue.length) {
+        var q = b.queue[0]; q.left -= dt;
+        if (q.left <= 0) {
+          var ally = 0; for (var k = 0; k < this.units.length; k++) if (this.units[k].side === 'ally' && !this.units[k].dead) ally++;
+          if (ally >= this.maxArmy || this.typeCount(q.type, 'ally') >= F.UNIT_CAP(q.type)) { q.left = 0; continue; }   // stalls until there is room
+          b.queue.shift();
+          var u = this.makeUnit('ally', q.type, 1, b.x + (this.rnd() - 0.5) * 24, false); u.bid = b.id; u.lane = b.lane || 0;
+          this.emit({ k: 'pop', gear: b.id, c: 0, r: 0, unit: u.id, type: q.type, level: 1 });
+        }
+      }
+    }
+  };
+  // Book 2 level: how far the next unit is along in a building's queue (for the countdown)
+  P.b2Countdown = function (bid) {
+    var b = this.buildings.filter(function (x) { return x.id === bid; })[0];
+    return b && b.queue.length ? b.queue.map(function (q) { return { type: q.type, left: Math.max(0, q.left), total: q.total }; }) : [];
+  };
+  P.terrainLabel = function (x) { return this.terrainAt(x); };
+
   // The crown gear picks the next champion from all of them, most often the most valuable (by its power); never a second blob.
   P.pickChampion = function () {
     var blob = this.blobAlive(), list = F.CHAMP_ORDER.filter(function (k) { return !(k === 'blob' && blob); });
@@ -553,6 +741,9 @@
     return false;
   };
   // Fighters of one kind alive on that side (the cap per kind).
+  P.countChampions = function (side) {
+    var n = 0; for (var i = 0; i < this.units.length; i++) { var o = this.units[i]; if (o.side === side && o.champ && !o.dead && o.state !== 'dying') n++; } return n;
+  };
   P.typeCount = function (type, side) {
     var n = 0; for (var i = 0; i < this.units.length; i++) { var o = this.units[i]; if (o.side === side && o.type === type && !o.dead && o.state !== 'dying') n++; } return n;
   };
@@ -561,16 +752,24 @@
     u.t += dt; u.cd -= dt; if (u.flash > 0) u.flash -= dt;
     if (u.converted > 0) { u.converted -= dt; if (u.converted <= 0) { u.converted = 0; u.side = 'enemy'; u.dir = -1; this.emit({ k: 'unconvert', x: u.x, y: u.y }); } }
     if (u.state === 'dying') { if (u.t > 0.75) u.dead = true; return; }
+    if (u.order && u.side === 'ally' && this.runOrder(u, dt)) return;      // a commanded unit moves on its own orders
     if (u.state === 'fall') { if (u.t >= 0.55) { u.state = 'getup'; u.t = 0; this.emit({ k: 'land', x: u.x, y: u.y, side: u.side }); } return; }
     if (u.state === 'getup') { u.anim = 'getup'; if (u.t >= 0.45) { u.state = 'go'; u.t = 0; } return; }
     var D = F.UNITS[u.type];
     if (u.slow > 0) u.slow -= dt;
     var spd = u.speed * (u.slow > 0 ? 0.4 : 1);
+    // book 2 terrain: marsh slows everyone, hills slow melee fighters; the terrain is remembered for missiles and the hill bonus
+    var tk = this.terrain.length ? this.terrainAt(u.x) : null; u.terr = tk;
+    if (tk === 'marsh') spd *= 0.6; else if (tk === 'hills' && D.kind === 'melee') spd *= 0.85;
     if (D.power === 'rally') this.rally(u, dt);
     if (D.power === 'heal') { u.healT -= dt; if (u.healT <= 0) { u.healT = 2.2; this.healAround(u); } }
     if (D.power === 'pierce') this.cartHit(u, dt);
     if (D.convert && u.side === 'ally') this.monkWork(u, dt);
     if (u.bulwark > 0) u.bulwark -= dt;
+    if (u.flankCD > 0) u.flankCD -= dt; if (u.flankT > 0) u.flankT -= dt;
+    if (u.side === 'ally' && D.power === 'freeze') this.freezeWork(u, dt);
+    if (u.side === 'ally' && (D.power === 'summon' || u.type === 'stoneguard')) this.summonWork(u, dt);
+    if (u.side === 'ally' && D.power === 'build') this.buildWork(u, dt);
     if (u.raiseCD > 0) u.raiseCD -= dt;
     if (u.champ && u.hp < u.max) u.hp = Math.min(u.max, u.hp + F.CHAMP_REGEN * u.max * dt);
     if (D.power === 'split' && !u.split) this.split(u);
@@ -669,7 +868,7 @@
     if (!t && !S2) return;
     if (t && (t.dead || t.state === 'dying')) return;
     if (S2 && !S2.alive) return;
-    var power = u.atk * (D.charge && !u.charged ? D.charge : 1) * this.rallyMult(u);
+    var power = u.atk * (D.charge && !u.charged ? D.charge : 1) * this.rallyMult(u) * (u.terr === 'hills' && D.kind === 'ranged' ? 1.2 : 1);
     if (D.charge) u.charged = true;
     if (D.power === 'breath') { this.breath(u, power, S2); return; }
     if (D.kind === 'ranged') {
@@ -720,14 +919,14 @@
       var direct = hits.slice(0, F.SPLASH_MAX), rest = hits.slice(F.SPLASH_MAX);
       direct.forEach(function (o) {
         var fall = 1 - Math.abs(o.x - p.x1) / (p.splash * 1.4);
-        L.hurt(o, dmgFrom(p.owner.atk, p.owner, o) * fall, null);
+        L.hurt(o, dmgFrom(p.owner.atk, p.owner, o) * fall * L.missileMul(o.x), null);
       });
       rest.forEach(function (o) { L.hurt(o, dmgFrom(p.owner.atk * 0.5 / rest.length, p.owner, o), null); });
       this.hurtStructsAt(p.x1, p.splash, p.owner.atk * (F.UNITS[p.owner.type].siege || 1) * (p.fromStruct ? 0.5 : 1), p.side);
     } else {
       var tu = null; for (var m = 0; m < this.units.length; m++) if (this.units[m].id === p.tgt) tu = this.units[m];
       if (tu && p.kind === 'stone' && tu.type === 'knight' && !tu.dead && tu.state !== 'dying') { this.emit({ k: 'dodge', x: tu.x, y: tu.y }); }
-      else if (tu && !tu.dead && tu.state !== 'dying') this.hurt(tu, dmgFrom(p.owner.atk, p.owner, tu), null);
+      else if (tu && !tu.dead && tu.state !== 'dying') this.hurt(tu, dmgFrom(p.owner.atk, p.owner, tu) * this.missileMul(tu.x), null);
       else if (p.tgtS) this.hurtStruct(this.structById(p.tgtS), p.owner.atk * (F.UNITS[p.owner.type].siege || 1));
       this.emit({ k: 'arrowhit', x: p.x1, y: p.y1, kind: p.kind });
     }
@@ -767,7 +966,7 @@
         this.emit({ k: 'pop', gear: g.id, c: g.c, r: g.r, unit: u.id, type: g.type, level: g.level });
         g.charge -= need;
       } else if (g.type === 'boss') {
-        if (allies >= this.maxArmy) { g.charge = need; return; }
+        if (allies >= this.maxArmy || this.countChampions('ally') >= this.maxChamps) { g.charge = need; return; }
         var ct = this.pickChampion();
         var bu = this.makeUnit('ally', ct, g.level, this.dropX(g.c), false);
         allies++;
@@ -816,6 +1015,7 @@
     // the heart ticks once per quarter turn: the gears get their ticks then, not continuously
     this.tickAcc += dt * 4 / this.heartPeriod;
     while (this.tickAcc >= 1) { this.tickAcc -= 1; this.ticks++; this.fillGears(1); this.emit({ k: 'tick' }); }
+    if (this.hasBuildings) this.b2Tick(dt);
     this.heartA += (this.ticks * Math.PI / 2 - 0.35 - this.heartA) * Math.min(1, dt * 16);
     if (this.status === 'running') {
       this.waveTimer -= dt;
@@ -824,6 +1024,7 @@
         var q = this.queue[i];
         if (this.t >= q.at && this.enemiesAlive() < this.maxEnemy && (q.boss || this.typeCount(q.type, 'enemy') < F.UNIT_CAP(q.type))) {
           var e = this.makeUnit('enemy', q.type, q.level || 1, this.ebx + 20, q.boss);
+          if (this.lanes > 1) e.lane = Math.floor(this.rnd() * this.lanes);
           e.state = 'go'; e.anim = 'walk'; this.queue.splice(i, 1);
           this.emit({ k: 'enemy', unit: e.id, boss: q.boss });
         }
@@ -834,6 +1035,7 @@
       this.hurtStruct(this.fort, this.fort.max * 0.02 * dt);
     }
     this.updateStructs(dt);
+    this.spikesWork(dt);
     for (i = this.raised.length - 1; i >= 0; i--) { this.raised[i].t -= dt; if (this.raised[i].t <= 0) this.raised.splice(i, 1); }
     for (i = 0; i < this.units.length; i++) this.updateUnit(this.units[i], dt);
     for (i = 0; i < this.proj.length; i++) this.updateProj(this.proj[i], dt);
