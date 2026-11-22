@@ -25,7 +25,7 @@ function bot2(sim, rnd) {
   sim.buildings.forEach(function (b) {
     var B = F.B2_BUILDINGS[b.type];
     if (B.kind !== 'unit') return;
-    var unlocked = F.b2Unlocked(sim.cfg.ch);
+    var unlocked = F.unlockedFor(sim.cfg);
     var options = B.units.filter(function (u) { return unlocked.indexOf(u) >= 0; }).reverse();
     for (var i = 0; i < options.length; i++) { if (b.queue.length >= 2) break; if (sim.res.food >= F.UNITS[options[i]].cost) { sim.b2Train(b.id, options[i]); } }
   });

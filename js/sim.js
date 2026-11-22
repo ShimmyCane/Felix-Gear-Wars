@@ -41,6 +41,7 @@
     this.pool = cfg.pool.concat(cfg.specials || []);
     // book 2: resources, buildings on plots, unit queues and terrain (no multipliers, no pegboard)
     this.book = cfg.book || 0; this.terrain = cfg.terrain || [];
+    this.hasBuildings = this.book === 2 || this.book === 3; this.lanes = cfg.lanes || 1;   // book 3: three lanes seen from above
     this.res = Object.assign({ food: 0, wood: 0, runes: 0 }, cfg.res || {});
     this.buildings = []; this.plotUse = {}; this.plotX = [];
     for (var pi = 0; pi < (cfg.plots || 0); pi++) this.plotX.push(180 + pi * 100);
@@ -277,7 +278,7 @@
     return pool[0];
   };
   P.rollTray = function () {
-    if (this.book === 2) { var bs = F.b2Buildings(this.cfg.ch); for (var bi = 0; bi < 3; bi++) this.tray[bi] = bs[Math.floor(this.rnd() * bs.length)]; return; }
+    if (this.hasBuildings) { var bs = F.b2Buildings(this.cfg.ch); for (var bi = 0; bi < 3; bi++) this.tray[bi] = bs[Math.floor(this.rnd() * bs.length)]; return; }
     for (var i = 0; i < 3; i++) this.tray[i] = this.rollOne();
     // always offer at least one fighter so a tray is never all specials
     if (!this.tray.some(function (t) { return F.UNITS[F.trayParts(t).type]; })) this.tray[0] = this.cfg.pool[this.cfg.pool.length - 1];
@@ -351,7 +352,7 @@
   // How strong is Felix right now, and how strong will he be by the time a wave arrives? In "spearman power" units.
   P.playerPower = function (window) {
     var p = 0, i, u, g, need, perSec = 4 / this.heartPeriod;
-    if (this.book === 2) { for (i = 0; i < this.buildings.length; i++) { var bb = this.buildings[i]; var BB = F.B2_BUILDINGS[bb.type]; if (BB.kind === 'unit') p += F.unitPower(BB.units[0]) * window / F.b2UnitTime(BB.units[0]) * (1 + 0.25 * (bb.level - 1)); } }
+    if (this.hasBuildings) { for (i = 0; i < this.buildings.length; i++) { var bb = this.buildings[i]; var BB = F.B2_BUILDINGS[bb.type]; if (BB.kind === 'unit') p += F.unitPower(BB.units[0]) * window / F.b2UnitTime(BB.units[0]) * (1 + 0.25 * (bb.level - 1)); } }
     for (i = 0; i < this.units.length; i++) {
       u = this.units[i]; if (u.side !== 'ally' || u.dead || u.state === 'dying') continue;
       p += F.unitPower(u.type) * (u.champ ? F.SM[0] * 1.6 : F.SM[u.level - 1]) * Math.max(0.2, u.hp / u.max) * (u.special ? F.SPECIALTY_BONUS : 1);
@@ -410,7 +411,7 @@
     var u = { id: this.nid++, side: side, type: type, level: level, boss: !!boss, x: x, y: this.rnd() * 52, hp: hp, max: hp, atk: atk, def: def,
       range: d.range * (boss || level >= F.BIG_LEVEL ? 1.25 : 1), big: level >= F.BIG_LEVEL, minRange: d.minRange || 0, speed: spd, cdMax: d.cd, cd: 0.3 + this.rnd() * 0.4, state: 'fall', t: 0,
       anim: 'fall', at: 0, hitDone: false, special: special, champ: !!d.champ, fly: !!d.fly, slow: 0, healT: 1.2, tgt: 0, dir: side === 'ally' ? 1 : -1, scale: sc, charged: false, flash: 0, phase: this.rnd() * 6.28, dead: false, vx: 0 };
-    this.units.push(u); return u;
+    u.lane = 0; this.units.push(u); return u;
   };
 
   function dmgFrom(atk, a, t, d) {   // a = attacker spec {type, atk, magic}, t = target unit, d = data
@@ -458,6 +459,7 @@
     var D = F.UNITS[u.type];
     for (i = 0; i < foes.length; i++) {
       o = foes[i]; dx = Math.abs(o.x - u.x);
+      if (this.lanes > 1 && Math.abs(o.lane - u.lane) > (D.kind === 'ranged' ? 1 : 0)) continue;   // book 3: fighters reach their own lane, archers the next one
       if (o.fly && D.kind === 'melee' && !u.fly) continue;       // spears cannot reach a dragon
       if (u.minRange && dx < u.minRange) continue;
       var reach = D.hunts ? 480 : Math.max(u.range, 150);
@@ -523,17 +525,27 @@
     return false;
   };
   // ---- the blob: splits into ten bits, five kills reform it; only one blob at a time ----------------------------
+  // ---- book 3: lanes seen from above; a fighter can flank into the next lane ---------------------------------------
+  P.flank = function (u, dl) {
+    if (!(this.lanes > 1) || u.side !== 'ally' || u.dead || u.state === 'dying' || u.state === 'fall') return 'no';
+    var nl = u.lane + dl;
+    if (nl < 0 || nl >= this.lanes) return 'edge';
+    if ((u.flankCD || 0) > 0) return 'cool';
+    u.lane = nl; u.flankCD = 6; u.flankT = 0.5;
+    this.emit({ k: 'flank', x: u.x, y: u.y, lane: nl });
+    return 'ok';
+  };
   // ---- book 2: buildings, resources and unit queues ---------------------------------------------------------------
   P.terrainAt = function (x) { for (var i = 0; i < this.terrain.length; i++) { var z = this.terrain[i]; if (x >= z.x0 && x <= z.x1) return z.kind; } return null; };
   P.missileMul = function (x) { var k = this.terrainAt(x); return k === 'trees' ? 0.5 : k === 'marsh' ? 0.85 : 1; };
   P.b2Place = function (slot, plot) {
     var key = this.tray[slot], B = F.B2_BUILDINGS[key];
-    if (this.book !== 2 || !B) return 'none';
+    if (!this.hasBuildings || !B) return 'none';
     if (this.plotUse[plot] || plot < 0 || plot >= this.plotX.length) return 'blocked';
     if (this.coins < B.cost) return 'poor';
     if (this.res.wood < B.wood || this.res.runes < B.runes) return 'poor';
     this.coins -= B.cost; this.res.wood -= B.wood; this.res.runes -= B.runes; this.spent += B.cost;
-    var b = { id: this.nid++, type: key, plot: plot, x: this.plotX[plot], level: 1, queue: [], kind: B.kind };
+    var b = { id: this.nid++, type: key, plot: plot, x: this.plotX[plot], lane: Math.floor(plot / 3), level: 1, queue: [], kind: B.kind };
     this.buildings.push(b); this.plotUse[plot] = b.id;
     this.tray[slot] = this.b2Shop(slot);
     this.emit({ k: 'place', id: b.id });
@@ -543,7 +555,7 @@
   P.b2Train = function (bid, unit) {
     var b = this.buildings.filter(function (x) { return x.id === bid; })[0];
     if (!b || b.kind !== 'unit') return 'none';
-    if (F.B2_BUILDINGS[b.type].units.indexOf(unit) < 0 || F.b2Unlocked(this.cfg.ch).indexOf(unit) < 0) return 'locked';
+    if (F.B2_BUILDINGS[b.type].units.indexOf(unit) < 0 || F.unlockedFor(this.cfg).indexOf(unit) < 0) return 'locked';
     if (b.queue.length >= 3) return 'full';
     var cost = F.UNITS[unit].cost;
     if (this.res.food < cost) return 'food';
@@ -573,7 +585,7 @@
           var ally = 0; for (var k = 0; k < this.units.length; k++) if (this.units[k].side === 'ally' && !this.units[k].dead) ally++;
           if (ally >= this.maxArmy || this.typeCount(q.type, 'ally') >= F.UNIT_CAP(q.type)) { q.left = 0; continue; }   // stalls until there is room
           b.queue.shift();
-          var u = this.makeUnit('ally', q.type, 1, b.x + (this.rnd() - 0.5) * 24, false); u.bid = b.id;
+          var u = this.makeUnit('ally', q.type, 1, b.x + (this.rnd() - 0.5) * 24, false); u.bid = b.id; u.lane = b.lane || 0;
           this.emit({ k: 'pop', gear: b.id, c: 0, r: 0, unit: u.id, type: q.type, level: 1 });
         }
       }
@@ -671,6 +683,7 @@
     if (D.power === 'pierce') this.cartHit(u, dt);
     if (D.convert && u.side === 'ally') this.monkWork(u, dt);
     if (u.bulwark > 0) u.bulwark -= dt;
+    if (u.flankCD > 0) u.flankCD -= dt; if (u.flankT > 0) u.flankT -= dt;
     if (u.raiseCD > 0) u.raiseCD -= dt;
     if (u.champ && u.hp < u.max) u.hp = Math.min(u.max, u.hp + F.CHAMP_REGEN * u.max * dt);
     if (D.power === 'split' && !u.split) this.split(u);
@@ -916,7 +929,7 @@
     // the heart ticks once per quarter turn: the gears get their ticks then, not continuously
     this.tickAcc += dt * 4 / this.heartPeriod;
     while (this.tickAcc >= 1) { this.tickAcc -= 1; this.ticks++; this.fillGears(1); this.emit({ k: 'tick' }); }
-    if (this.book === 2) this.b2Tick(dt);
+    if (this.hasBuildings) this.b2Tick(dt);
     this.heartA += (this.ticks * Math.PI / 2 - 0.35 - this.heartA) * Math.min(1, dt * 16);
     if (this.status === 'running') {
       this.waveTimer -= dt;
@@ -925,6 +938,7 @@
         var q = this.queue[i];
         if (this.t >= q.at && this.enemiesAlive() < this.maxEnemy && (q.boss || this.typeCount(q.type, 'enemy') < F.UNIT_CAP(q.type))) {
           var e = this.makeUnit('enemy', q.type, q.level || 1, this.ebx + 20, q.boss);
+          if (this.lanes > 1) e.lane = Math.floor(this.rnd() * this.lanes);
           e.state = 'go'; e.anim = 'walk'; this.queue.splice(i, 1);
           this.emit({ k: 'enemy', unit: e.id, boss: q.boss });
         }

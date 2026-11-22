@@ -174,12 +174,12 @@
     else if (sim.status === 'running' && sim.waveIdx + 1 < sim.waveCount && sim.waveTimer > 2) add('next', 'next', 96, Art.C('#8fd18a'));
     hudBtns.forEach(function (b) { button(c, b); });
     // pace of the next wave
-    if (sim.book === 2) {
+    if (sim.hasBuildings) {
       txt(c, 'food ' + Math.floor(sim.res.food) + '   wood ' + Math.floor(sim.res.wood) + '   runes ' + Math.floor(sim.res.runes), 560, hy + 17, 16, T.text, 'left', '800');
       var tr = sim.buildings.filter(function (x) { return x.queue.length; }).slice(0, 3).map(function (x) { return F.B2_BUILDINGS[x.type].name + ' ' + Math.ceil(x.queue[0].left) + 's'; });
       txt(c, tr.length ? 'Training: ' + tr.join('  ·  ') : 'Tap a building to train units', 560, hy + 39, 14, T.text, 'left', '600');
     }
-    if (sim.status === 'running' && sim.waveIdx + 1 < sim.waveCount && isFinite(sim.waveTimer) && sim.book !== 2) {
+    if (sim.status === 'running' && sim.waveIdx + 1 < sim.waveCount && isFinite(sim.waveTimer) && !sim.hasBuildings) {
       var wt = Math.max(0, sim.waveTimer), fr = 1 - Math.min(1, wt / sim.gap);
       c.fillStyle = 'rgba(0,0,0,0.15)'; Art.rr(c, 560, 44, 150, 8, 4); c.fill(); c.fillStyle = Art.C('#e0a43a'); Art.rr(c, 560, 44, Math.max(3, 150 * fr), 8, 4); c.fill();
       txt(c, 'next wave', 560, 29, 14, Art.theme.text, 'left', '600');
@@ -374,10 +374,10 @@
     var sh = shake > 0.3 ? [(Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake] : [0, 0]; c.translate(sh[0], sh[1]);
     if (sim) {
       hudBtns = [];
-      drawBattle(c);
-      if (sim.book === 2) { drawB2Board(c); drawB2Tray(c); } else { drawBoard(c); drawTray(c); }
+      if (sim.book === 3) drawTopBattle(c); else drawBattle(c);
+      if (sim.hasBuildings) { drawB2Board(c); drawB2Tray(c); } else { drawBoard(c); drawTray(c); }
       drawHUD(c); drawMini(c); if (+S.showFun) drawFun(c);
-      if (sim.book === 2) drawB2Popup(c);
+      if (sim.hasBuildings) drawB2Popup(c);
       if (drag && drag.moved) {
         if (drag.kind === 'gear') { var g = drag.gear; g.need = F.ticksNeeded(g.type, g.level); Art.drawGear(c, g, drag.x, drag.y - 12, L.cs / 2 * 1.08, gearAngle(g), { glow: true }); }
         else if (drag.kind === 'card') { var ty = sim.tray[drag.slot]; if (ty) { var tp = F.trayParts(ty); Art.drawGear(c, { type: tp.type, level: tp.level, charge: 0, need: F.ticksNeeded(tp.type, tp.level), active: false, locked: false, pulse: 0 }, drag.x, drag.y - 12, L.cs / 2 * 1.08, tAnim, { glow: true }); } }
@@ -438,6 +438,7 @@
   function nextCfg(c, step) {
     var o = { quick: +S.quick, mode: S.mode };
     if (c.book === 2) { var i = Math.min(44, c.idx + step); return F.b2Config(Math.floor(i / 3) + 1, i % 3 + 1, o); }
+    if (c.book === 3) { var k = Math.min(29, c.idx + step); return F.b3Config(Math.floor(k / 3) + 1, k % 3 + 1, o); }
     if (c.free) return F.freeConfig(o);
     var j = c.idx + step; return F.levelConfig(Math.floor(j / 3) + 1, j % 3 + 1, o);
   }
@@ -502,6 +503,57 @@
       txt(c, 'Upgrade to level ' + (b.level + 1) + ': ' + 60 * b.level + ' gold, ' + 20 * b.level + ' wood', ur.x + ur.w / 2, ur.y + 31, 15, T.text, 'center', '800');
     } else txt(c, 'Fully upgraded', ur.x + ur.w / 2, ur.y + 31, 15, T.text, 'center', '800');
   }
+  // ---- book 3 battle, seen from above: three lanes, units as tokens, flank arrows on the selected one -----------------
+  var b3Sel = 0;
+  function laneH() { return (L.bf.h - 20) / 3; }
+  function laneY(l) { return L.bf.y + 10 + l * laneH() + laneH() / 2; }
+  function b3FlankRects(u) {
+    var y = laneY(u.lane), sx = u.x - scroll, hh = laneH();
+    return { up: { x: sx - 22, y: y - hh / 2 + 2, w: 44, h: 20 }, down: { x: sx - 22, y: y + hh / 2 - 22, w: 44, h: 20 } };
+  }
+  function drawTopBattle(c) {
+    var T = Art.theme, hh = laneH(), i, l;
+    c.fillStyle = Art.C(T.panel2); c.fillRect(0, L.bf.y, W, L.bf.h);
+    for (l = 0; l < 3; l++) {
+      var y0 = L.bf.y + 10 + l * hh;
+      c.fillStyle = l % 2 ? 'rgba(120,160,80,0.22)' : 'rgba(180,150,90,0.22)'; c.fillRect(0, y0 + 2, W, hh - 4);
+      c.strokeStyle = Art.ink; c.lineWidth = 2; c.setLineDash([10, 8]); c.beginPath(); c.moveTo(0, y0 + hh / 2); c.lineTo(W, y0 + hh / 2); c.stroke(); c.setLineDash([]);
+    }
+    // castle on the left, fortress on the right
+    var cx = 90 - scroll, fx = sim.ebx + 60 - scroll;
+    panel(c, cx - 36, L.bf.y + 10, 72, L.bf.h - 20, Art.C('#3c6fb8'), 10);
+    panel(c, fx - 36, L.bf.y + 10, 72, L.bf.h - 20, Art.C('#8a3b30'), 10);
+    txt(c, 'Fortress ' + Math.round(100 * sim.fort.hp / sim.fort.max) + '%', fx, L.bf.y + 4, 13, T.text, 'center', '800');
+    sim.units.forEach(function (u) {
+      if (u.dead) return;
+      var sx = u.x - scroll, sy = laneY(u.lane), r = u.boss ? 26 : u.champ ? 20 : 15, col = u.side === 'ally' ? '#2d6cdf' : '#d9302a';
+      if (u.state === 'dying') { c.globalAlpha = 0.4; }
+      c.beginPath(); c.arc(sx, sy, r, 0, TAU); c.fillStyle = col; c.fill(); c.lineWidth = 2; c.strokeStyle = Art.ink; c.stroke(); c.globalAlpha = 1;
+      txt(c, (F.UNITS[u.type] ? F.UNITS[u.type].name : u.type).slice(0, 1), sx, sy + 5, 14, '#ffffff', 'center', '900');
+      if (u.side === 'ally') { c.fillStyle = 'rgba(0,0,0,0.3)'; c.fillRect(sx - 14, sy - r - 8, 28, 4); c.fillStyle = '#8fd18a'; c.fillRect(sx - 14, sy - r - 8, 28 * Math.max(0, u.hp / u.max), 4); }
+      if (u.id === b3Sel) { c.beginPath(); c.arc(sx, sy, r + 6, 0, TAU); c.strokeStyle = Art.C('#ffd24a'); c.lineWidth = 3; c.stroke(); }
+    });
+    sim.proj.forEach(function (p) {
+      var f = Math.min(1, p.t / Math.max(0.01, p.dur)), px = p.x0 + (p.x1 - p.x0) * f - scroll;
+      c.beginPath(); c.arc(px, laneY(1), 3, 0, TAU); c.fillStyle = p.side === 'ally' ? '#9fd0ff' : '#ffb0a0'; c.fill();
+    });
+    if (b3Sel) { var su = sim.units.filter(function (u) { return u.id === b3Sel && !u.dead; })[0]; if (su && su.side === 'ally') {
+      var fr = b3FlankRects(su);
+      panel(c, fr.up.x, fr.up.y, fr.up.w, fr.up.h, Art.C(T.btn), 8); txt(c, '▲ lane', fr.up.x + fr.up.w / 2, fr.up.y + 14, 11, T.text, 'center', '800');
+      panel(c, fr.down.x, fr.down.y, fr.down.w, fr.down.h, Art.C(T.btn), 8); txt(c, '▼ lane', fr.down.x + fr.down.w / 2, fr.down.y + 14, 11, T.text, 'center', '800');
+    } else b3Sel = 0; }
+  }
+  function b3Tap(x, y) {
+    if (b3Sel) {
+      var su = sim.units.filter(function (u) { return u.id === b3Sel && !u.dead; })[0];
+      if (su) { var fr = b3FlankRects(su); var res = null;
+        if (hit(fr.up, x, y)) res = sim.flank(su, -1); else if (hit(fr.down, x, y)) res = sim.flank(su, 1);
+        if (res) { say(res === 'ok' ? 'Flanked into the next lane' : res === 'cool' ? 'Flank is cooling down' : 'No lane that way'); if (res === 'ok') Au.play('tap'); return; } }
+    }
+    var best = null, bd = 34;
+    sim.units.forEach(function (u) { if (u.side !== 'ally' || u.dead) return; var d = Math.hypot(u.x - scroll - x, laneY(u.lane) - y); if (d < bd) { bd = d; best = u; } });
+    b3Sel = best ? best.id : 0; if (best) Au.play('tap');
+  }
   function b2Tap(x, y) {
     if (b2Bld) {
       var b = findB(b2Bld), R = b2PopupRect();
@@ -513,6 +565,7 @@
       if (!hit(R, x, y) || hit({ x: R.x + R.w - 50, y: R.y, w: 50, h: 50 }, x, y)) b2Bld = null;
       return;
     }
+    if (sim.book === 3 && y >= L.bf.y) { b3Tap(x, y); return; }
     var cell = cellAt(x, y);
     if (cell && cell[1] * 3 + cell[0] < sim.plotX.length) {
       var plot = cell[1] * 3 + cell[0];
@@ -542,7 +595,7 @@
     try { cv.setPointerCapture(e.pointerId); } catch (er) { /* ignore */ }
     for (i = 0; i < hudBtns.length; i++) if (hit(hudBtns[i], x, y)) { hudBtns[i].down = true; drag = { kind: 'btn', btn: hudBtns[i], x: x, y: y }; return; }
     if (paused) return;
-    if (sim.book === 2) { drag = { kind: 'b2', x: x, y: y, sx: x, sy: y, moved: false }; return; }
+    if (sim.hasBuildings) { drag = { kind: 'b2', x: x, y: y, sx: x, sy: y, moved: false }; return; }
     var cards = cardRects();
     for (i = 0; i < 3; i++) if (sim.tray[i] && hit(cards[i], x, y)) { drag = { kind: 'card', slot: i, x: x, y: y, sx: x, sy: y, moved: false }; return; }
     var cell = cellAt(x, y);
@@ -663,6 +716,23 @@
       })(lv);
       card.appendChild(row); box.appendChild(card);
     });
+    // book 3: the Lanes, after book 2 chapter 15
+    var b3h = document.createElement('h2'); b3h.textContent = 'Book 3: The Lanes'; box.appendChild(b3h);
+    if (!(P.stars.b2c15l3 > 0)) { var lk3 = document.createElement('p'); lk3.textContent = 'Locked: beat book 2 to open book 3.'; box.appendChild(lk3); }
+    else for (var b3c = 1; b3c <= 10; b3c++) (function (n) {
+      var card = document.createElement('section'); card.className = 'chapter';
+      var h = document.createElement('h3'); h.textContent = n + '. ' + F.B3_CHAPTERS[n - 1].title; card.appendChild(h);
+      var row = document.createElement('div'); row.className = 'lvRow';
+      for (var lv = 1; lv <= 3; lv++) (function (lv) {
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'lvBtn'; var idx = (n - 1) * 3 + (lv - 1), id = 'b3c' + n + 'l' + lv, st = P.stars[id] || 0;
+        var ok = idx === 0 || (P.stars['b3c' + (Math.floor((idx - 1) / 3) + 1) + 'l' + ((idx - 1) % 3 + 1)] || 0) > 0;
+        b.disabled = !ok; b.setAttribute('aria-label', 'Book 3 chapter ' + n + ' level ' + lv);
+        b.innerHTML = '<span class="lvNum">' + (lv === 3 ? '♛' : lv) + '</span><span class="lvStars">' + (ok ? '★'.repeat(st) + '☆'.repeat(3 - st) : '🔒') + '</span>';
+        b.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.b3Config(n, lv, { quick: +S.quick, mode: S.mode })); });
+        row.appendChild(b);
+      })(lv);
+      card.appendChild(row); box.appendChild(card);
+    })(b3c);
     $('freeBest').textContent = P.freeBest ? 'best: wave ' + P.freeBest : '';
     show('map'); if (window.AppNotes) AppNotes.setContext({ item: 'map', label: 'Campaign map' });
   }
@@ -709,7 +779,7 @@
     $('resText').textContent = cfg.free ? 'Best: wave ' + P.freeBest : win ? 'Lives left ' + sim.lives + ' of ' + sim.maxLives + ' · Coins earned ' + sim.earned + ' · Enemies beaten ' + sim.kills
       : 'Next time you start with a few extra coins. Try other gears, or merge to make stronger fighters.';
     var nxt = $('resNext'), idx = cfg.idx;
-    nxt.hidden = !(win && !cfg.free && (cfg.book === 2 ? idx < 44 : true));
+    nxt.hidden = !(win && !cfg.free && (cfg.book === 2 ? idx < 44 : cfg.book === 3 ? idx < 29 : true));
     $('resRetry').textContent = win ? 'Play again' : 'Try again';
     show('result');
     if (win && !cfg.free) setTimeout(function () { for (var i = 0; i < stars; i++) (function (i) { setTimeout(function () { Au.play('star', i); }, i * 260); })(i); }, 200);

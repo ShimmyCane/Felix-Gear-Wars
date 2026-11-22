@@ -62,9 +62,13 @@
   F.modeRoyal = function (m) { return F.MODE_ROYAL[F.modeOf(m)]; };
   // Book 2 has its own press numbers (the tuner sets them): 45 levels, so the lists are longer.
   var B2ONES = []; for (var b2i = 0; b2i < 45; b2i++) B2ONES.push(1);
-  // tuned2:begin
-  F.B2_MODE_PRESS = { easy: 1, medium: 1, hard: 1 };
-  F.B2_LEVEL_PRESS = { easy: B2ONES, medium: B2ONES, hard: B2ONES };
+  // tuned2:begin (written by tools/balance_tune.js apply; re-tune after changing the rules)
+  F.B2_MODE_PRESS = { easy: 1.559, medium: 1.854, hard: 2.859 };
+  F.B2_LEVEL_PRESS = {
+    easy: [0.92, 0.92, 0.778, 1, 1, 1, 1, 1, 1, 0.92, 1, 0.92, 0.92, 0.92, 0.92, 1, 1, 1, 1, 1, 1, 1, 0.92, 0.846, 1, 1, 0.92, 1, 0.92, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    medium: [0.846, 0.778, 0.778, 1.331, 1.21, 1.012, 1.331, 1.331, 1.331, 0.778, 0.846, 0.931, 0.778, 0.846, 0.778, 1.21, 1.21, 1.1, 0.931, 1.012, 1, 1.113, 0.92, 0.846, 1, 1.012, 1.012, 1.1, 1.012, 0.931, 1, 1.331, 1.1, 1.1, 1.1, 1.012, 1.012, 1.1, 1.1, 1.21, 1.1, 1.21, 1.331, 1.331, 1.331],
+    hard: [1.1, 1, 0.778, 1.1, 1.113, 1, 1.1, 1.1, 1.1, 0.846, 0.92, 0.92, 0.778, 0.778, 0.778, 0.92, 1, 0.92, 1.012, 0.92, 1, 1, 0.92, 0.778, 0.92, 0.846, 0.846, 1, 0.92, 0.92, 0.778, 1, 1, 1, 0.846, 0.846, 1, 1.21, 1.012, 1, 1.012, 0.92, 1.21, 1, 1]
+  };
   // tuned2:end
   F.modeOf = function (m) { return F.MODES[m] ? m : 'medium'; };
   F.modePress = function (mode, idx, book) {
@@ -468,6 +472,31 @@
     { n: 14, title: 'The Healing Ford',    unit: 'healer',     terrain: [{ x0: 800, x1: 1200, kind: 'trees' }, { x0: 1500, x1: 2000, kind: 'marsh' }] },
     { n: 15, title: 'The Battlemage Keep', unit: 'battlemage', terrain: [{ x0: 500, x1: 900, kind: 'hills' }, { x0: 1100, x1: 1600, kind: 'trees' }, { x0: 1800, x1: 2300, kind: 'marsh' }] },
   ];
+  // ---- book 3: the Lanes. Seen from above, three lanes, nine plots, and fighters that can flank into the next lane. -----
+  // Ten chapters. The fifteen book 2 units arrive two or three at a time; the last chapters have them all.
+  F.B3_UNITS_BY_CH = [['spearman', 'archer'], ['mage', 'knight'], ['fighter', 'catapult'], ['apprentice', 'rider'], ['monk', 'tank'],
+    ['assassin', 'shield'], ['crossbow', 'healer'], ['battlemage'], [], []];
+  F.b3Unlocked = function (ch) { var res = []; for (var i = 0; i < Math.min(ch, F.B3_UNITS_BY_CH.length); i++) res = res.concat(F.B3_UNITS_BY_CH[i]); return res; };
+  F.unlockedFor = function (cfg) { return cfg.book === 3 ? F.b3Unlocked(cfg.ch) : F.b2Unlocked(cfg.ch); };
+  F.B3_CHAPTERS = [
+    { n: 1, title: 'Three Roads', terrain: [] }, { n: 2, title: 'Mages on the Middle Road', terrain: [] },
+    { n: 3, title: 'The Flank', terrain: [] }, { n: 4, title: 'Fog on the Lanes', terrain: [] }, { n: 5, title: 'The Bell Road', terrain: [] },
+    { n: 6, title: 'Shadows and Shields', terrain: [] }, { n: 7, title: 'Crossbows in Three Lanes', terrain: [] },
+    { n: 8, title: 'The Battlemage Gate', terrain: [] }, { n: 9, title: 'Every Road at Once', terrain: [] }, { n: 10, title: 'The Last Crossing', terrain: [] },
+  ];
+  F.b3Config = function (ch, lv, o) {
+    o = o || {}; var idx = (ch - 1) * 3 + (lv - 1), C = F.B3_CHAPTERS[ch - 1];
+    var pool = F.b3Unlocked(ch), gold = 180 + 15 * idx, unit = pool[pool.length - 1] || 'spearman';
+    return {
+      id: 'b3c' + ch + 'l' + lv, book: 3, lanes: 3, ch: ch, lv: lv, idx: idx, seed: 7000 + idx * 77, free: false, world: 2560,
+      board: { cols: 3, rows: 3, heart: { c: 0, r: 0 }, holes: [], dormant: [] },
+      lives: 20 + 5 * ch, coins: gold, creep: 0, gearTarget: 0, lastWave: 5 + idx, dynamic: true, len: 1, waves: [],
+      bossName: lv === 3 ? 'The Lane Captain ' + ch : null, bossType: lv === 3 ? unit : null,
+      baseHp: F.TUNE.fort + F.TUNE.fortPer * idx, pool: pool, specials: [], quick: !!o.quick, mode: F.modeOf(o.mode),
+      terrain: C.terrain, plots: 9, res: { food: 80, wood: 50, runes: 25 },
+      story: { cap: 'Book 3, chapter ' + ch + ': ' + C.title, short: 'Three lanes. Send fighters where the Horde is thinnest.', story: 'The road splits into three lanes. Your fighters can flank into the next lane to meet the enemy where it is weakest.' },
+    };
+  };
   F.B2_BOSS = { 3: 'The Marsh Witch', 6: 'Lord of the Pines', 9: 'The Bell Keeper', 12: 'Bronze Warden', 15: 'The Battlemage King' };
   F.B2_PLOTS = 6;              // building plots along the front of the map
   F.b2Unlocked = function (ch) { var res = []; for (var i = 0; i < ch; i++) res.push(F.B2_SEQ[i]); return res; };
