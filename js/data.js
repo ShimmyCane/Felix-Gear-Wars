@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var F = globalThis.FGW = globalThis.FGW || {};
-  F.version = '0.7.0';
+  F.version = '0.8.0';
 
   // ---- the world --------------------------------------------------------------------------
   F.VIEW_W = 1280;             // logical width of the screen
@@ -478,11 +478,26 @@
     { n: 14, title: 'The Healing Ford',    unit: 'healer',     terrain: [{ x0: 800, x1: 1200, kind: 'trees' }, { x0: 1500, x1: 2000, kind: 'marsh' }] },
     { n: 15, title: 'The Battlemage Keep', unit: 'battlemage', terrain: [{ x0: 500, x1: 900, kind: 'hills' }, { x0: 1100, x1: 1600, kind: 'trees' }, { x0: 1800, x1: 2300, kind: 'marsh' }] },
   ];
+  // ---- book 3's five new characters (the freezer, the summoner and its stoneguard, the builder, the flanker) ----------
+  F.UNITS.freezer   = { name: 'Freezer', cost: 60, hp: 80, atk: 8, def: 4, range: 240, speed: 40, cd: 1.6, kind: 'ranged', magic: true, power: 'freeze', draw: 'mage', vs: {}, order: 0 };
+  F.UNITS.summoner  = { name: 'Summoner', cost: 90, hp: 90, atk: 10, def: 3, range: 260, speed: 34, cd: 1.7, kind: 'ranged', magic: true, power: 'summon', draw: 'monk', vs: {}, order: 0 };
+  F.UNITS.stoneguard = { name: 'Stoneguard', cost: 0, hp: 180, atk: 9, def: 22, range: 50, speed: 30, cd: 1.3, kind: 'melee', power: 'trap', draw: 'tank', vs: {}, order: 0, summoned: true };
+  F.UNITS.builder   = { name: 'Builder', cost: 70, hp: 100, atk: 9, def: 8, range: 50, speed: 46, cd: 1.1, kind: 'melee', power: 'build', draw: 'fighter', vs: {}, order: 0 };
+  F.UNITS.flanker   = { name: 'Flanker', cost: 75, hp: 70, atk: 16, def: 3, range: 50, speed: 110, cd: 0.8, kind: 'melee', power: 'flank', draw: 'assassin', vs: {}, order: 0 };
+  F.B3_BUILDINGS = {
+    foundry:  { name: 'Foundry', kind: 'unit', units: ['builder', 'flanker'], cost: 110, wood: 40, runes: 10, unlock: 3 },
+    icehouse: { name: 'Ice house', kind: 'unit', units: ['freezer'], cost: 90, wood: 0, runes: 20, unlock: 2 },
+    shrine:   { name: 'Shrine', kind: 'unit', units: ['summoner'], cost: 100, wood: 0, runes: 30, unlock: 4 },
+  };
+  F.B3_SPIKE = { dps: 22, life: 30, radius: 50, max: 3, every: 12 };   // the builder's spike walls
+
   // ---- book 3: the Lanes. Seen from above, three lanes, nine plots, and fighters that can flank into the next lane. -----
   // Ten chapters. The fifteen book 2 units arrive two or three at a time; the last chapters have them all.
-  F.B3_UNITS_BY_CH = [['spearman', 'archer'], ['mage', 'knight'], ['fighter', 'catapult'], ['apprentice', 'rider'], ['monk', 'tank'],
-    ['assassin', 'shield'], ['crossbow', 'healer'], ['battlemage'], [], []];
+  F.B3_UNITS_BY_CH = [['spearman', 'archer'], ['mage', 'freezer'], ['knight', 'summoner'], ['builder', 'fighter'], ['flanker', 'catapult'],
+    ['apprentice', 'rider'], ['monk', 'tank'], ['assassin', 'shield'], ['crossbow', 'healer'], ['battlemage']];
   F.b3Unlocked = function (ch) { var res = []; for (var i = 0; i < Math.min(ch, F.B3_UNITS_BY_CH.length); i++) res = res.concat(F.B3_UNITS_BY_CH[i]); return res; };
+  F.b3Buildings = function (ch) { return F.b2Buildings(ch, 3); };
+  Object.keys(F.B3_BUILDINGS).forEach(function (k) { F.B2_BUILDINGS[k] = F.B3_BUILDINGS[k]; });   // one lookup for every building
   F.unlockedFor = function (cfg) { return cfg.book === 3 ? F.b3Unlocked(cfg.ch) : F.b2Unlocked(cfg.ch); };
   F.B3_CHAPTERS = [
     { n: 1, title: 'Three Roads', terrain: [] }, { n: 2, title: 'Mages on the Middle Road', terrain: [] },
@@ -506,7 +521,22 @@
   F.B2_BOSS = { 3: 'The Marsh Witch', 6: 'Lord of the Pines', 9: 'The Bell Keeper', 12: 'Bronze Warden', 15: 'The Battlemage King' };
   F.B2_PLOTS = 6;              // building plots along the front of the map
   F.b2Unlocked = function (ch) { var res = []; for (var i = 0; i < ch; i++) res.push(F.B2_SEQ[i]); return res; };
-  F.b2Buildings = function (ch) { return Object.keys(F.B2_BUILDINGS).filter(function (k) { return F.B2_BUILDINGS[k].unlock <= ch; }); };
+  F.b2Buildings = function (ch, book) { return Object.keys(F.B2_BUILDINGS).filter(function (k) { return F.B2_BUILDINGS[k].unlock <= ch && (book === 3 || !F.B3_BUILDINGS[k]); }); };
+  // Endless play for books 2 and 3: every unit of the book, the waves keep growing, the fortress cannot fall. Best wave is kept per book.
+  F.b2FreeConfig = function (o) {
+    o = o || {}; var c = F.b2Config(15, 3, o), pool = F.b2Unlocked(15);
+    c.id = 'b2free'; c.free = true; c.ch = 15; c.lv = 0; c.idx = 44; c.bossName = null; c.bossType = null; c.bossEvery = 5;
+    c.pool = pool; c.lives = 60; c.coins = 400; c.baseHp = 99999; c.res = { food: 120, wood: 80, runes: 40 }; c.plots = 6; c.terrain = [];
+    c.story = { cap: 'Book 2: endless', short: 'Every Gear Works unit, every building. The Horde never stops.', story: 'No chapter now. Build the Works, train every unit and hold back the Horde for as long as you can.' };
+    return c;
+  };
+  F.b3FreeConfig = function (o) {
+    o = o || {}; var c = F.b3Config(10, 3, o), pool = F.b3Unlocked(10);
+    c.id = 'b3free'; c.free = true; c.ch = 10; c.lv = 0; c.idx = 29; c.bossName = null; c.bossType = null; c.bossEvery = 5;
+    c.pool = pool; c.lives = 60; c.coins = 400; c.baseHp = 99999; c.res = { food: 120, wood: 80, runes: 40 }; c.plots = 9; c.terrain = [];
+    c.story = { cap: 'Book 3: endless', short: 'Three lanes, every unit, every flank. The Horde never stops.', story: 'The lanes run on forever. Flank, freeze and build, and hold the Horde as long as you can.' };
+    return c;
+  };
   F.b2UnitTime = function (type) { return 6 + 2 * F.tierOf(type === 'monk' ? 'monk' : type) / 4; };   // seconds to train a unit
   F.b2Config = function (ch, lv, o) {
     o = o || {}; var idx = (ch - 1) * 3 + (lv - 1), C = F.B2_CHAPTERS[ch - 1];

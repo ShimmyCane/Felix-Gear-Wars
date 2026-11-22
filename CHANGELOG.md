@@ -2,6 +2,11 @@
 
 Newest first. The version number is `F.version` in `js/data.js`; the balance numbers are in `research/balance.md`.
 
+## 0.8.0
+
+- **Book 3 introduces five new characters:** the freezer (slows the nearest three enemies in its lanes every five seconds; from level three it chooses the most dangerous), the summoner (summons a stoneguard every ten seconds, two at a time), the stoneguard (a defensive creature that keeps summoning after its summoner falls; at level four or more it traps the enemies near it when it falls), the builder (places spike walls ahead in its lane), and the flanker (flanks again after 1.5 seconds). Three new buildings: foundry, ice house, shrine.
+- **Endless play for each book.** Book 2 and book 3 have an endless mode with every unit of the book. The best wave is kept per book.
+
 ## 0.7.0
 
 - **Book 2: The Gear Works.** Fifteen chapters, one new unit each (nine units by chapter 9, twelve by chapter 12, fifteen by 15). Five unit buildings (barracks, archery workshop, wizards tower, stables, church) train up to three units each from food over a timer. Resource buildings (farm, sawmill, mine, market) upgrade to level 3. No pegboard: buildings go on six plots. Terrain per chapter: trees halve missile damage, marsh slows, hills slow melee and boost ranged damage. Opens after book 1 chapter 10.

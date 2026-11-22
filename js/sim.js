@@ -41,7 +41,7 @@
     this.pool = cfg.pool.concat(cfg.specials || []);
     // book 2: resources, buildings on plots, unit queues and terrain (no multipliers, no pegboard)
     this.book = cfg.book || 0; this.terrain = cfg.terrain || [];
-    this.hasBuildings = this.book === 2 || this.book === 3; this.lanes = cfg.lanes || 1;   // book 3: three lanes seen from above
+    this.spikes = []; this.hasBuildings = this.book === 2 || this.book === 3; this.lanes = cfg.lanes || 1;   // book 3: three lanes seen from above
     this.res = Object.assign({ food: 0, wood: 0, runes: 0 }, cfg.res || {});
     this.buildings = []; this.plotUse = {}; this.plotX = [];
     for (var pi = 0; pi < (cfg.plots || 0); pi++) this.plotX.push(180 + pi * 100);
@@ -278,7 +278,7 @@
     return pool[0];
   };
   P.rollTray = function () {
-    if (this.hasBuildings) { var bs = F.b2Buildings(this.cfg.ch); for (var bi = 0; bi < 3; bi++) this.tray[bi] = bs[Math.floor(this.rnd() * bs.length)]; return; }
+    if (this.hasBuildings) { var bs = F.b2Buildings(this.cfg.ch, this.book); for (var bi = 0; bi < 3; bi++) this.tray[bi] = bs[Math.floor(this.rnd() * bs.length)]; return; }
     for (var i = 0; i < 3; i++) this.tray[i] = this.rollOne();
     // always offer at least one fighter so a tray is never all specials
     if (!this.tray.some(function (t) { return F.UNITS[F.trayParts(t).type]; })) this.tray[0] = this.cfg.pool[this.cfg.pool.length - 1];
@@ -435,6 +435,11 @@
       if ((src.grows || 0) < 4) { src.grows = (src.grows || 0) + 1; var oldMax = src.max; src.max *= 1.25; src.hp += 0.25 * oldMax; src.atk *= 1.15; }
       if (g.kills >= 5) this.reformBlob(g);
     }
+    // a stoneguard at level four or more traps the enemies near it as it falls
+    if (t.type === 'stoneguard' && t.side === 'ally' && t.level >= 4) {
+      this.units.forEach(function (o) { if (o.side === 'enemy' && !o.dead && !o.champ && !o.boss && Math.abs(o.x - t.x) <= 120) o.slow = Math.max(o.slow || 0, 3); });
+      this.emit({ k: 'trap', x: t.x, y: t.y });
+    }
     // a necromancer raises the enemy that just fell, if one is near and ready
     if (t.side === 'enemy' && !t.champ && !t.boss && !t.bit) {
       for (var ni = 0; ni < this.units.length; ni++) {
@@ -531,10 +536,61 @@
     var nl = u.lane + dl;
     if (nl < 0 || nl >= this.lanes) return 'edge';
     if ((u.flankCD || 0) > 0) return 'cool';
-    u.lane = nl; u.flankCD = 6; u.flankT = 0.5;
+    u.lane = nl; u.flankCD = u.type === 'flanker' ? 1.5 : 6; u.flankT = 0.5;
     this.emit({ k: 'flank', x: u.x, y: u.y, lane: nl });
     return 'ok';
   };
+  // ---- book 3's new characters ---------------------------------------------------------------------------------------
+  // in the same lane (or the next one, for ranged units), an enemy the unit can reach
+  P.laneFoes = function (u, range) {
+    var out = [], fs = this.foes(u);
+    for (var i = 0; i < fs.length; i++) { var f = fs[i]; if (Math.abs(f.x - u.x) <= range && (this.lanes <= 1 || Math.abs(f.lane - u.lane) <= 1)) out.push(f); }
+    return out;
+  };
+  // Freezer: slows up to three enemies to a crawl every five seconds. From level three it picks the most dangerous ones.
+  P.freezeWork = function (u, dt) {
+    u.frT = (u.frT || 0) - dt; if (u.frT > 0) return;
+    var list = this.laneFoes(u, 260).filter(function (f) { return !f.boss && !f.champ; });
+    if (!list.length) { u.frT = 0.5; return; }
+    list.sort(function (a, b) { return u.level >= 3 ? b.atk - a.atk : Math.abs(a.x - u.x) - Math.abs(b.x - u.x); });
+    list.slice(0, 3).forEach(function (f) { f.slow = Math.max(f.slow || 0, 2.2); });
+    u.frT = 5;
+    this.emit({ k: 'freeze', x: u.x, y: u.y });
+  };
+  // Summoner: summons a stoneguard every ten seconds (two at a time). A stoneguard whose summoner has fallen keeps summoning, every fifteen seconds.
+  P.summonWork = function (u, dt) {
+    var parentAlive = !!u.parent && this.units.some(function (o) { return o.id === u.parent && !o.dead && o.state !== 'dying'; });
+    if (u.type === 'stoneguard' && parentAlive) return;
+    u.smT = (u.smT || 0) - dt; if (u.smT > 0) return;
+    var guards = this.units.filter(function (o) { return o.side === 'ally' && o.type === 'stoneguard' && !o.dead && o.state !== 'dying'; }).length;
+    if (guards >= 8) { u.smT = 2; return; }
+    if (u.type === 'summoner') { var mine = this.units.filter(function (o) { return o.parent === u.id && !o.dead; }).length; if (mine >= 2) { u.smT = 2; return; } }
+    var g = this.makeUnit('ally', 'stoneguard', u.level || 1, u.x + (this.rnd() - 0.5) * 30, false);
+    g.parent = u.type === 'summoner' ? u.id : (u.parent || 0); g.lane = u.lane; g.state = 'fall';
+    u.smT = u.type === 'summoner' ? 10 : 15;
+    this.emit({ k: 'summon', x: u.x, y: u.y, unit: g.id });
+  };
+  // Builder: places a spike wall just ahead in its lane every twelve seconds (up to three of them, each lasting 30 seconds).
+  P.buildWork = function (u, dt) {
+    u.bdT = (u.bdT || 0) - dt; if (u.bdT > 0) return;
+    var mine = this.spikes.filter(function (s) { return s.side === u.side && s.lane === u.lane; }).length;
+    if (mine >= F.B3_SPIKE.max) { u.bdT = 2; return; }
+    this.spikes.push({ x: u.x + 60, lane: u.lane, side: u.side, t: F.B3_SPIKE.life });
+    u.bdT = F.B3_SPIKE.every;
+    this.emit({ k: 'build', x: u.x + 60, y: u.y });
+  };
+  P.spikesWork = function (dt) {
+    for (var i = this.spikes.length - 1; i >= 0; i--) {
+      var sp = this.spikes[i]; sp.t -= dt; if (sp.t <= 0) { this.spikes.splice(i, 1); continue; }
+      var self = this;
+      this.units.forEach(function (o) {
+        if (o.side === sp.side || o.dead || o.state === 'dying' || o.state === 'fall') return;
+        if (this.lanes > 1 && o.lane !== sp.lane) return;
+        if (Math.abs(o.x - sp.x) <= F.B3_SPIKE.radius) self.hurt(o, F.B3_SPIKE.dps * dt, null);
+      }, this);
+    }
+  };
+
   // ---- book 2: buildings, resources and unit queues ---------------------------------------------------------------
   P.terrainAt = function (x) { for (var i = 0; i < this.terrain.length; i++) { var z = this.terrain[i]; if (x >= z.x0 && x <= z.x1) return z.kind; } return null; };
   P.missileMul = function (x) { var k = this.terrainAt(x); return k === 'trees' ? 0.5 : k === 'marsh' ? 0.85 : 1; };
@@ -551,7 +607,7 @@
     this.emit({ k: 'place', id: b.id });
     return 'ok';
   };
-  P.b2Shop = function (slot) { var bs = F.b2Buildings(this.cfg.ch); return bs[Math.floor(this.rnd() * bs.length)]; };
+  P.b2Shop = function (slot) { var bs = F.b2Buildings(this.cfg.ch, this.book); return bs[Math.floor(this.rnd() * bs.length)]; };
   P.b2Train = function (bid, unit) {
     var b = this.buildings.filter(function (x) { return x.id === bid; })[0];
     if (!b || b.kind !== 'unit') return 'none';
@@ -684,6 +740,9 @@
     if (D.convert && u.side === 'ally') this.monkWork(u, dt);
     if (u.bulwark > 0) u.bulwark -= dt;
     if (u.flankCD > 0) u.flankCD -= dt; if (u.flankT > 0) u.flankT -= dt;
+    if (u.side === 'ally' && D.power === 'freeze') this.freezeWork(u, dt);
+    if (u.side === 'ally' && (D.power === 'summon' || u.type === 'stoneguard')) this.summonWork(u, dt);
+    if (u.side === 'ally' && D.power === 'build') this.buildWork(u, dt);
     if (u.raiseCD > 0) u.raiseCD -= dt;
     if (u.champ && u.hp < u.max) u.hp = Math.min(u.max, u.hp + F.CHAMP_REGEN * u.max * dt);
     if (D.power === 'split' && !u.split) this.split(u);
@@ -949,6 +1008,7 @@
       this.hurtStruct(this.fort, this.fort.max * 0.02 * dt);
     }
     this.updateStructs(dt);
+    this.spikesWork(dt);
     for (i = this.raised.length - 1; i >= 0; i--) { this.raised[i].t -= dt; if (this.raised[i].t <= 0) this.raised.splice(i, 1); }
     for (i = 0; i < this.units.length; i++) this.updateUnit(this.units[i], dt);
     for (i = 0; i < this.proj.length; i++) this.updateProj(this.proj[i], dt);

@@ -147,6 +147,11 @@
         case 'split': sparks(e.x - scroll, Art.groundY(L.bf) - 30, 14, '#7fd672'); Au.play('pop'); break;
         case 'raise': ring(e.x - scroll, Art.groundY(L.bf) - 20, 44, '#b98cff'); floatText(e.x - scroll, Art.groundY(L.bf) - 70, 'Rise!', '#d9c2ff'); Au.play('merge'); break;
         case 'reform': ring(e.x - scroll, Art.groundY(L.bf) - 30, 70, '#7fd672'); floatText(e.x - scroll, Art.groundY(L.bf) - 90, 'The blob reforms!', '#c7f0a0'); Au.play('horn', false); break;
+        case 'freeze': ring(e.x - scroll, Art.groundY(L.bf) - 30, 60, '#bfe6ff'); floatText(e.x - scroll, Art.groundY(L.bf) - 80, 'Frost!', '#bfe6ff'); Au.play('merge'); break;
+        case 'summon': ring(e.x - scroll, Art.groundY(L.bf) - 30, 40, '#b8844a'); floatText(e.x - scroll, Art.groundY(L.bf) - 70, 'Stoneguard!', '#e8d7b0'); break;
+        case 'build': floatText(e.x - scroll, Art.groundY(L.bf) - 60, 'Spikes!', '#e8d7b0'); break;
+        case 'trap': ring(e.x - scroll, Art.groundY(L.bf), 80, '#b8844a'); floatText(e.x - scroll, Art.groundY(L.bf) - 80, 'Trapped!', '#e8d7b0'); break;
+        case 'flank': floatText(e.x - scroll, Art.groundY(L.bf) - 60, 'Flank!', '#ffe27a'); break;
         case 'dodge': floatText(e.x - scroll, Art.groundY(L.bf) - 70, 'Dodged!', '#c7f0a0'); break;
         case 'basehit': Au.play('base'); sparks(sim.ebx - scroll + 60, Art.groundY(L.bf) - 40, 6, '#ffd090'); break;
         case 'basefall': shake = 14; Au.play('boom'); puff(sim.ebx - scroll + 80, Art.groundY(L.bf) - 50, 30, '#7a6a60', 160, 40); break;
@@ -165,7 +170,7 @@
     c.fillStyle = Art.C('#d63a4a'); Art.rr(c, 76, hy + 43, Math.max(2, 70 * sim.lives / sim.maxLives), 6, 3); c.fill();
     coinIcon(c, 196, hy + 28, 13); txt(c, String(Math.floor(sim.coins)), 216, hy + 29, 28, T.text);
     var title = cfg.free ? 'Free-for-all' : 'Chapter ' + cfg.ch + ' · Level ' + cfg.lv;
-    txt(c, title, 340, hy + 17, 18, T.text, 'left', '800'); txt(c, cfg.free ? 'Wave ' + Math.max(0, sim.waveIdx + 1) + '  (best ' + P.freeBest + ')' : 'Wave ' + Math.max(0, sim.waveIdx + 1) + ' / ' + sim.waveCount, 340, hy + 39, 16, T.text, 'left', '600');
+    txt(c, title, 340, hy + 17, 18, T.text, 'left', '800'); txt(c, cfg.free ? 'Wave ' + Math.max(0, sim.waveIdx + 1) + '  (best ' + (P[bestKey(cfg)] || 0) + ')' : 'Wave ' + Math.max(0, sim.waveIdx + 1) + ' / ' + sim.waveCount, 340, hy + 39, 16, T.text, 'left', '600');
     var army = sim.alliesAlive(), armyCap = sim.armyCap(); txt(c, 'Army ' + army + '/' + armyCap, cfg.free ? 520 : 450, hy + 39, 16, army >= armyCap ? Art.C('#c0392b') : T.text, 'left', '700');
     var bx = W - 34 - 68;
     function add(id, icon, w, fill) { var b = { id: id, icon: icon, x: bx - (w - 64), y: hy + 4, w: w, h: 48, fill: fill }; bx -= w + 8; hudBtns.push(b); return b; }
@@ -418,7 +423,7 @@
     for (i = bolts.length - 1; i >= 0; i--) { bolts[i].t += dt; if (bolts[i].t > 0.28) bolts.splice(i, 1); }
     if (banner) { banner.t += dt; if (banner.t > 2.6) banner = null; }
     shake = Math.max(0, shake - dt * 30); redFlash = Math.max(0, redFlash - dt * 1.8); beat = Math.max(0, beat - dt * 4);
-    if (cfg && cfg.free && sim.waveIdx + 1 > P.freeBest) { P.freeBest = sim.waveIdx + 1; }
+    if (cfg && cfg.free && sim.waveIdx + 1 > (P[bestKey(cfg)] || 0)) { P[bestKey(cfg)] = sim.waveIdx + 1; }
   }
   function updateCamera(dt) {
     if (drag && drag.kind === 'pan') return;
@@ -435,8 +440,11 @@
   // ---- book 2 screen: plots, shop cards, the building popup, and taps --------------------------------------------
   var b2Bld = null, b2Slot = -1;     // the building whose popup is open; the shop card selected for placing
   var B2COL = { food: '#8fd18a', wood: '#b8844a', runes: '#9b6bd1', gold: '#f2c94c', unit: '#7aa2d9' };
+  function bestKey(c) { return c && c.book ? 'freeBest' + c.book : 'freeBest'; }
   function nextCfg(c, step) {
     var o = { quick: +S.quick, mode: S.mode };
+    if (c.free && c.book === 2) return F.b2FreeConfig(o);
+    if (c.free && c.book === 3) return F.b3FreeConfig(o);
     if (c.book === 2) { var i = Math.min(44, c.idx + step); return F.b2Config(Math.floor(i / 3) + 1, i % 3 + 1, o); }
     if (c.book === 3) { var k = Math.min(29, c.idx + step); return F.b3Config(Math.floor(k / 3) + 1, k % 3 + 1, o); }
     if (c.free) return F.freeConfig(o);
@@ -532,6 +540,11 @@
       txt(c, (F.UNITS[u.type] ? F.UNITS[u.type].name : u.type).slice(0, 1), sx, sy + 5, 14, '#ffffff', 'center', '900');
       if (u.side === 'ally') { c.fillStyle = 'rgba(0,0,0,0.3)'; c.fillRect(sx - 14, sy - r - 8, 28, 4); c.fillStyle = '#8fd18a'; c.fillRect(sx - 14, sy - r - 8, 28 * Math.max(0, u.hp / u.max), 4); }
       if (u.id === b3Sel) { c.beginPath(); c.arc(sx, sy, r + 6, 0, TAU); c.strokeStyle = Art.C('#ffd24a'); c.lineWidth = 3; c.stroke(); }
+    });
+    sim.spikes.forEach(function (sp) {
+      var sx = sp.x - scroll, sy = laneY(sp.lane);
+      c.fillStyle = sp.side === 'ally' ? '#b8844a' : '#7a3b30'; c.strokeStyle = Art.ink; c.lineWidth = 2;
+      for (var k = -2; k <= 2; k++) { c.beginPath(); c.moveTo(sx + k * 12 - 5, sy + 12); c.lineTo(sx + k * 12, sy - 10); c.lineTo(sx + k * 12 + 5, sy + 12); c.closePath(); c.fill(); c.stroke(); }
     });
     sim.proj.forEach(function (p) {
       var f = Math.min(1, p.t / Math.max(0.01, p.dur)), px = p.x0 + (p.x1 - p.x0) * f - scroll;
@@ -702,6 +715,8 @@
     });
     // book 2: opens when chapter 10 of book 1 is beaten; its chapters use buildings and resources
     var b2h = document.createElement('h2'); b2h.textContent = 'Book 2: The Gear Works'; box.appendChild(b2h);
+    if (P.stars.c10l3 > 0) { var e2 = document.createElement('button'); e2.type = 'button'; e2.className = 'lvBtn'; e2.textContent = 'Endless · best wave ' + (P.freeBest2 || 0);
+      e2.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.b2FreeConfig({ quick: +S.quick, mode: S.mode })); }); box.appendChild(e2); }
     if (!(P.stars.c10l3 > 0)) { var lk = document.createElement('p'); lk.textContent = 'Locked: beat chapter 10 to open book 2.'; box.appendChild(lk); }
     else F.B2_CHAPTERS.forEach(function (C) {
       var card = document.createElement('section'); card.className = 'chapter';
@@ -718,6 +733,8 @@
     });
     // book 3: the Lanes, after book 2 chapter 15
     var b3h = document.createElement('h2'); b3h.textContent = 'Book 3: The Lanes'; box.appendChild(b3h);
+    if (P.stars.b2c15l3 > 0) { var e3 = document.createElement('button'); e3.type = 'button'; e3.className = 'lvBtn'; e3.textContent = 'Endless · best wave ' + (P.freeBest3 || 0);
+      e3.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.b3FreeConfig({ quick: +S.quick, mode: S.mode })); }); box.appendChild(e3); }
     if (!(P.stars.b2c15l3 > 0)) { var lk3 = document.createElement('p'); lk3.textContent = 'Locked: beat book 2 to open book 3.'; box.appendChild(lk3); }
     else for (var b3c = 1; b3c <= 10; b3c++) (function (n) {
       var card = document.createElement('section'); card.className = 'chapter';
@@ -770,13 +787,13 @@
     ended = false; var win = sim.status === 'won', stars = sim.stars(), id = cfg.id;
     if (win && !cfg.free) { P.stars[id] = Math.max(P.stars[id] || 0, stars); P.fails[id] = 0; }
     if (!win && !cfg.free) P.fails[id] = (P.fails[id] || 0) + 1;
-    if (cfg.free) P.freeBest = Math.max(P.freeBest, sim.waveIdx + 1);
+    if (cfg.free) { var fk = cfg.book ? 'freeBest' + cfg.book : 'freeBest'; P[fk] = Math.max(P[fk] || 0, sim.waveIdx + 1); }
     saveProgress();
     var R = $('screenResult');
     $('resTitle').textContent = cfg.free ? 'Waves held: ' + Math.max(0, sim.waveIdx) : win ? 'The fortress falls!' : 'The Horde got through';
     $('resStars').textContent = win ? '★'.repeat(stars) + '☆'.repeat(3 - stars) : '';
     $('resStars').hidden = !win;
-    $('resText').textContent = cfg.free ? 'Best: wave ' + P.freeBest : win ? 'Lives left ' + sim.lives + ' of ' + sim.maxLives + ' · Coins earned ' + sim.earned + ' · Enemies beaten ' + sim.kills
+    $('resText').textContent = cfg.free ? 'Best: wave ' + (P[bestKey(cfg)] || 0) : win ? 'Lives left ' + sim.lives + ' of ' + sim.maxLives + ' · Coins earned ' + sim.earned + ' · Enemies beaten ' + sim.kills
       : 'Next time you start with a few extra coins. Try other gears, or merge to make stronger fighters.';
     var nxt = $('resNext'), idx = cfg.idx;
     nxt.hidden = !(win && !cfg.free && (cfg.book === 2 ? idx < 44 : cfg.book === 3 ? idx < 29 : true));
