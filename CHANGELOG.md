@@ -2,6 +2,13 @@
 
 Newest first. The version number is `F.version` in `js/data.js`; the balance numbers are in `research/balance.md`.
 
+## 0.5.0
+
+- **Multipliers cost four times as much.** The 1X, 2X, 4X and 8X prices are now 60, 160, 440 and 1,200 (were 15, 40, 110 and 300).
+- **4X and 8X are a tenth as strong down the chain.** Every gear after a 4X or 8X runs 1.3 times faster (or 1.7 times for 8X), not 4 or 8 times.
+- **1X and 2X only reach their neighbours.** A 2X doubles the gears right next to it, and does not pass the boost on. A 1X has no effect (its value is 1).
+- **Loops no longer compound.** Boosts flow outward from the heart, so a loop of gears around a multiplier counts its boost once.
+
 ## 0.4.0
 
 - **The shop matches your money.** Each gear is offered at the highest level (up to 4) whose price is at most a tenth of your coins, so a bigger bank does not mean a lot of merging. The tray shows the level pips.

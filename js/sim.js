@@ -210,17 +210,40 @@
       var gain = {}; this.sideGain[s] = gain;
       var first = this.gearAt(this.heart.c + DIRS[s][0], this.heart.r + DIRS[s][1]);
       if (!first) continue;
+      // distance from the heart along the chain: boosts only flow outward, so a loop cannot compound
+      var dist = {}, order = [first], qi = 0;
+      dist[first.id] = 0;
+      while (qi < order.length) {
+        var gq = order[qi++];
+        for (var dq = 0; dq < 4; dq++) {
+          var qc = gq.c + DIRS[dq][0], qr = gq.r + DIRS[dq][1];
+          if (self.isHeart(qc, qr)) continue;
+          var hq = self.gearAt(qc, qr);
+          if (hq && dist[hq.id] === undefined) { dist[hq.id] = dist[gq.id] + 1; order.push(hq); }
+        }
+      }
       gain[first.id] = 1;
-      var queue = [first];
-      while (queue.length) {
-        var g = queue.shift();
-        var out = Math.min(F.MULTCAP, gain[g.id] * (g.type === 'mult' ? F.MULTV[g.level - 1] : 1));
+      for (var oi = 0; oi < order.length; oi++) {
+        var g = order[oi];
+        // a 4x or 8x multiplier speeds up everything after it on the chain by a tenth of its extra (8x is 1.7 times, not 8)
+        var chain = (g.type === 'mult' && F.MULTV[g.level - 1] >= 4) ? 1 + 0.1 * (F.MULTV[g.level - 1] - 1) : 1;
+        var out = Math.min(F.MULTCAP, gain[g.id] * chain);
         for (var d = 0; d < 4; d++) {
           var nc = g.c + DIRS[d][0], nr = g.r + DIRS[d][1];
           if (self.isHeart(nc, nr)) continue;
           var h = self.gearAt(nc, nr);
-          if (h && (gain[h.id] || 0) < out) { gain[h.id] = out; queue.push(h); }
+          if (h && dist[h.id] === dist[g.id] + 1 && (gain[h.id] || 0) < out) gain[h.id] = out;
         }
+      }
+      // a 1x or 2x multiplier speeds up only the gears right next to it, and does not pass the boost on
+      for (var id2 in gain) {
+        var gg2 = this.gearById(+id2); if (gg2.type === 'mult') continue;
+        var adj = 1;
+        for (var d2 = 0; d2 < 4; d2++) {
+          var nb = this.gearAt(gg2.c + DIRS[d2][0], gg2.r + DIRS[d2][1]);
+          if (nb && nb.type === 'mult' && F.MULTV[nb.level - 1] < 4 && gain[nb.id]) adj = Math.max(adj, F.MULTV[nb.level - 1]);
+        }
+        gain[id2] = Math.min(F.MULTCAP, gain[id2] * adj);
       }
       for (var id in gain) { var gg = this.gearById(+id); gg.rate += gain[id]; gg.gmax = Math.max(gg.gmax, gain[id]); gg.active = true; }
     }

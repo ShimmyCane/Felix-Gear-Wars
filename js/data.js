@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var F = globalThis.FGW = globalThis.FGW || {};
-  F.version = '0.4.0';
+  F.version = '0.5.0';
 
   // ---- the world --------------------------------------------------------------------------
   F.VIEW_W = 1280;             // logical width of the screen
@@ -21,7 +21,7 @@
   F.LEVEL_SPEED = 0.92;        // each merge level needs this much of the ticks: stats x2.2 for 8% less time, about 20% better than two side by side
   F.MULTV = [1, 2, 4, 8];      // multiplier gear values
   F.MULTCAP = 8;               // a chain of multipliers never passes on more than 8x (22x used to break the screen)
-  F.MULT_COST = [15, 40, 110, 300];   // price of a multiplier by its value: doubling the heart speed costs more
+  F.MULT_COST = [60, 160, 440, 1200]; // price of a multiplier by its value (four times the first version's prices)
   F.MAXLEVEL = 6;              // level 5 shows a gold star in place of the pips; level 6 adds a crown and makes a boss-sized fighter
   F.BIG_LEVEL = 6;             // from this level a fighter is boss-sized, reaches 25% further and its ability is stronger
   F.MULT_MAXLEVEL = 4;         // multipliers stop at 8x (no value for a fifth level)
@@ -159,7 +159,7 @@
 
   // ---- gears that are not fighters --------------------------------------------------------
   F.SPECIALS = {
-    mult:      { name: 'Multiplier', cost: 15, icon: 'mult', note: 'Passes ticks on, times 1, 2, 4 or 8' },
+    mult:      { name: 'Multiplier', cost: 60, icon: 'mult', note: 'Passes ticks on, times 1, 2, 4 or 8' },
     boss:      { name: 'Boss gear', cost: 120, icon: 'boss', note: 'Turns very slowly, then a champion steps out' },
     lightning: { name: 'Lightning', cost: 60, tick0: 20, icon: 'lightning', dmg: 30, strikes: 2 },
     rocket:    { name: 'Rockets', cost: 70, tick0: 24, icon: 'rocket', dmg: 40, splash: 95 },
