@@ -20,7 +20,7 @@
   window.addEventListener('unhandledrejection', function (ev) { GW.err('Promise error', ev.reason); });
 
   // ---- settings and progress (device storage, always in try/catch) -----------------------------
-  var DEF = { champMax: 8, armyMax: 25, mode: 'medium', showFun: 0, funPeak: 3, funFade: 7, challenge: 1, bossRevs: 20, voice: 'auto', heartSpeed: 1, theme: 'manuscript', sfx: 0.8, music: 0.5, speed: 1, quick: 0, follow: 1, reading: 'auto', showErrors: 0 };
+  var DEF = { preview: 1, champMax: 8, armyMax: 25, mode: 'medium', showFun: 0, funPeak: 3, funFade: 7, challenge: 1, bossRevs: 20, voice: 'auto', heartSpeed: 1, theme: 'manuscript', sfx: 0.8, music: 0.5, speed: 1, quick: 0, follow: 1, reading: 'auto', showErrors: 0 };
   var S = Object.assign({}, DEF);
   try { var raw = JSON.parse(localStorage.getItem('fgw.settings') || '{}'); Object.keys(DEF).forEach(function (k) { if (raw[k] !== undefined) S[k] = raw[k]; }); } catch (e) { /* storage blocked */ }
   function saveSettings() { try { localStorage.setItem('fgw.settings', JSON.stringify(S)); } catch (e) { /* ignore */ } }
@@ -742,16 +742,16 @@
       requestAnimationFrame(function () { try { portrait(cvs, C.n, 260, 120, false); } catch (e) { GW.err('Portrait', e); } });
     });
     // book 2: opens when chapter 10 of book 1 is beaten; its chapters use buildings and resources
-    var b2h = document.createElement('h2'); b2h.textContent = 'Book 2: The Gear Works'; box.appendChild(b2h);
-    if (P.stars.c10l3 > 0) { var e2 = document.createElement('button'); e2.type = 'button'; e2.className = 'lvBtn'; e2.textContent = 'Endless · best wave ' + (P.freeBest2 || 0);
+    var b2h = document.createElement('h2'); b2h.id = 'book2Head'; b2h.textContent = 'Book 2: The Gear Works'; box.appendChild(b2h);
+    if (+S.preview || P.stars.c10l3 > 0) { var e2 = document.createElement('button'); e2.type = 'button'; e2.className = 'lvBtn'; e2.textContent = 'Endless · best wave ' + (P.freeBest2 || 0);
       e2.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.b2FreeConfig({ quick: +S.quick, mode: S.mode })); }); box.appendChild(e2); }
-    if (!(P.stars.c10l3 > 0)) { var lk = document.createElement('p'); lk.textContent = 'Locked: beat chapter 10 to open book 2.'; box.appendChild(lk); }
+    if (!(+S.preview || P.stars.c10l3 > 0)) { var lk = document.createElement('p'); lk.textContent = 'Locked: beat chapter 10 to open book 2 (or turn on Preview in the settings).'; box.appendChild(lk); }
     else F.B2_CHAPTERS.forEach(function (C) {
       var card = document.createElement('section'); card.className = 'chapter';
       var h = document.createElement('h3'); h.textContent = C.n + '. ' + C.title + '  (' + Art.unitName(C.unit) + ')'; card.appendChild(h);
       var row = document.createElement('div'); row.className = 'lvRow';
       for (var lv = 1; lv <= 3; lv++) (function (lv) {
-        var b = document.createElement('button'); b.type = 'button'; b.className = 'lvBtn'; var id = 'b2c' + C.n + 'l' + lv, st = P.stars[id] || 0, ok = book2Unlocked(C.n, lv);
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'lvBtn'; var id = 'b2c' + C.n + 'l' + lv, st = P.stars[id] || 0, ok = !!(+S.preview) || book2Unlocked(C.n, lv);
         b.disabled = !ok; b.setAttribute('aria-label', 'Book 2 chapter ' + C.n + ' level ' + lv);
         b.innerHTML = '<span class="lvNum">' + (lv === 3 ? '♛' : lv) + '</span><span class="lvStars">' + (ok ? '★'.repeat(st) + '☆'.repeat(3 - st) : '🔒') + '</span>';
         b.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.b2Config(C.n, lv, { quick: +S.quick, mode: S.mode })); });
@@ -760,17 +760,17 @@
       card.appendChild(row); box.appendChild(card);
     });
     // book 3: the Lanes, after book 2 chapter 15
-    var b3h = document.createElement('h2'); b3h.textContent = 'Book 3: The Lanes'; box.appendChild(b3h);
-    if (P.stars.b2c15l3 > 0) { var e3 = document.createElement('button'); e3.type = 'button'; e3.className = 'lvBtn'; e3.textContent = 'Endless · best wave ' + (P.freeBest3 || 0);
+    var b3h = document.createElement('h2'); b3h.id = 'book3Head'; b3h.textContent = 'Book 3: The Lanes'; box.appendChild(b3h);
+    if (+S.preview || P.stars.b2c15l3 > 0) { var e3 = document.createElement('button'); e3.type = 'button'; e3.className = 'lvBtn'; e3.textContent = 'Endless · best wave ' + (P.freeBest3 || 0);
       e3.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.b3FreeConfig({ quick: +S.quick, mode: S.mode })); }); box.appendChild(e3); }
-    if (!(P.stars.b2c15l3 > 0)) { var lk3 = document.createElement('p'); lk3.textContent = 'Locked: beat book 2 to open book 3.'; box.appendChild(lk3); }
+    if (!(+S.preview || P.stars.b2c15l3 > 0)) { var lk3 = document.createElement('p'); lk3.textContent = 'Locked: beat book 2 to open book 3 (or turn on Preview in the settings).'; box.appendChild(lk3); }
     else for (var b3c = 1; b3c <= 10; b3c++) (function (n) {
       var card = document.createElement('section'); card.className = 'chapter';
       var h = document.createElement('h3'); h.textContent = n + '. ' + F.B3_CHAPTERS[n - 1].title; card.appendChild(h);
       var row = document.createElement('div'); row.className = 'lvRow';
       for (var lv = 1; lv <= 3; lv++) (function (lv) {
         var b = document.createElement('button'); b.type = 'button'; b.className = 'lvBtn'; var idx = (n - 1) * 3 + (lv - 1), id = 'b3c' + n + 'l' + lv, st = P.stars[id] || 0;
-        var ok = idx === 0 || (P.stars['b3c' + (Math.floor((idx - 1) / 3) + 1) + 'l' + ((idx - 1) % 3 + 1)] || 0) > 0;
+        var ok = !!(+S.preview) || idx === 0 || (P.stars['b3c' + (Math.floor((idx - 1) / 3) + 1) + 'l' + ((idx - 1) % 3 + 1)] || 0) > 0;
         b.disabled = !ok; b.setAttribute('aria-label', 'Book 3 chapter ' + n + ' level ' + lv);
         b.innerHTML = '<span class="lvNum">' + (lv === 3 ? '♛' : lv) + '</span><span class="lvStars">' + (ok ? '★'.repeat(st) + '☆'.repeat(3 - st) : '🔒') + '</span>';
         b.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.b3Config(n, lv, { quick: +S.quick, mode: S.mode })); });
@@ -886,7 +886,21 @@
     });
     $('btnFree').addEventListener('click', function () { $('drawer').hidden = true; Au.init(); showStory(F.freeConfig({ quick: +S.quick, mode: S.mode })); });
     $('btnMap').addEventListener('click', function () { $('drawer').hidden = true; leaveLevel(); showMap(); });
-    $('btnCheat').addEventListener('click', function () { if (sim && screen === 'play') { sim.coins += 25; Au.play('coin'); } else say('Start a level first'); });
+    $('jump1').addEventListener('click', function () { var m = $('mapGrid'); if (m && m.scrollIntoView) m.scrollIntoView(); });
+    $('jump2').addEventListener('click', function () { var el = $('book2Head'); if (el && el.scrollIntoView) el.scrollIntoView(); });
+    $('jump3').addEventListener('click', function () { var el = $('book3Head'); if (el && el.scrollIntoView) el.scrollIntoView(); });
+    function openBook(n) { S.preview = 1; saveSettings(); syncSettings(); $('drawer').hidden = true; leaveLevel(); showMap(); var el = $('book' + n + 'Head'); if (el && el.scrollIntoView) el.scrollIntoView(); }
+    $('btnBook2').addEventListener('click', function () { openBook(2); });
+    $('btnBook3').addEventListener('click', function () { openBook(3); });
+    // the coin cheat is about the price of one new gear (book 1) or building (books 2 and 3), at least 25
+    function cheatAmount() {
+      if (!sim || screen !== 'play') return 25;
+      var costs = sim.tray.filter(Boolean).map(function (t) { return sim.hasBuildings ? F.B2_BUILDINGS[t].cost : sim.priceOf(t); });
+      if (!costs.length) return 25;
+      return Math.max(25, Math.round(costs.reduce(function (a, b) { return a + b; }, 0) / costs.length / 5) * 5);
+    }
+    setInterval(function () { $('btnCheat').textContent = '+' + cheatAmount() + ' coins'; }, 500);
+    $('btnCheat').addEventListener('click', function () { if (sim && screen === 'play') { sim.coins += cheatAmount(); Au.play('coin'); } else say('Start a level first'); });
     $('btnReset').addEventListener('click', function () {
       if (!window.confirm('Erase all stars and progress on this device?')) return;
       P.stars = {}; P.fails = {}; P.freeBest = 0; saveProgress(); $('drawer').hidden = true; showMap();

@@ -2,6 +2,12 @@
 
 Newest first. The version number is `F.version` in `js/data.js`; the balance numbers are in `research/balance.md`.
 
+## 0.9.1
+
+- **Books 2 and 3 are easy to find.** The settings open with a Levels and books panel: Book 2 and Book 3 buttons jump straight to their levels. The map has Book 1, 2 and 3 tabs at the top. A Preview switch (on by default) opens every level of books 2 and 3; Locked makes them wait for the book before.
+- **The coin cheat grows with prices.** It adds about the price of one new gear or building (at least 25) instead of a flat 25.
+- Script files carry the version in their address, so a browser cannot keep an old copy.
+
 ## 0.9.0
 
 - **Book 3 is map first.** The battlefield fills the screen. Building is behind a Build button. Tap a unit to select it, then choose Move (tap the map; the lane follows the tap), Attach (tap a friendly unit to follow and fight beside it), Hide (retreat behind the castle, where enemies cannot target the unit) or Clear. Units without orders fight on their own.

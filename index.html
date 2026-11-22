@@ -11,7 +11,8 @@
 
 <!-- campaign map -->
 <main id="screenMap" class="screen">
-  <header class="screenHead"><h1>Felix Gear Wars</h1><p>Pick a level. Each chapter brings a new fighter.</p></header>
+  <header class="screenHead"><h1>Felix Gear Wars</h1><p>Pick a level. Each chapter brings a new fighter.</p>
+    <p class="bookJump"><button id="jump1" type="button" class="lvBtn">Book 1</button> <button id="jump2" type="button" class="lvBtn">Book 2: The Gear Works</button> <button id="jump3" type="button" class="lvBtn">Book 3: The Lanes</button></p></header>
   <div id="mapGrid" class="mapGrid"></div>
   <div class="mapFoot"><button id="mapFree" type="button" class="big">Free-for-all <small id="freeBest"></small></button></div>
 </main>
@@ -40,6 +41,18 @@
 <button class="gear" id="gear" aria-label="Settings" aria-expanded="false" aria-controls="drawer">⚙️</button>
 <aside class="drawer" id="drawer" hidden>
   <div class="drawerHead"><h2>Settings</h2><button class="mini" id="closeDrawer" aria-label="Close" type="button">✖</button></div>
+
+  <section class="panel" data-collapsed="false">
+    <button class="pHead" type="button" aria-expanded="true"><span class="icon">🗺️</span><span class="title">Levels and books</span><span class="mark">▾</span></button>
+    <div class="pBody">
+      <button id="btnMap" type="button" class="wideBtn">Chapter select (book 1)</button>
+      <button id="btnBook2" type="button" class="wideBtn">Book 2: The Gear Works <small>buildings, resources, terrain</small></button>
+      <button id="btnBook3" type="button" class="wideBtn">Book 3: The Lanes <small>top-down, three lanes, flanking</small></button>
+      <div class="setting"><label>Books 2 and 3 <small>preview opens every level; locked waits for the book before it</small></label><div class="seg" data-key="preview"><button data-v="1">Preview</button><button data-v="0">Locked</button></div></div>
+      <button id="btnFree" type="button" class="wideBtn">Free-for-all level <small>every fighter, harder foes</small></button>
+      <button id="btnReset" type="button" class="wideBtn danger">Reset progress</button>
+    </div>
+  </section>
 
   <section class="panel" data-collapsed="false">
     <button class="pHead" type="button" aria-expanded="true"><span class="icon">🎮</span><span class="title">Play</span><span class="mark">▾</span></button>
@@ -84,19 +97,10 @@
   </section>
 
   <section class="panel" data-collapsed="true">
-    <button class="pHead" type="button" aria-expanded="false"><span class="icon">🗺️</span><span class="title">Levels</span><span class="mark">▸</span></button>
-    <div class="pBody">
-      <button id="btnMap" type="button" class="wideBtn">Chapter select</button>
-      <button id="btnFree" type="button" class="wideBtn">Free-for-all level <small>every fighter, harder foes</small></button>
-      <button id="btnReset" type="button" class="wideBtn danger">Reset progress</button>
-    </div>
-  </section>
-
-  <section class="panel" data-collapsed="true">
     <button class="pHead" type="button" aria-expanded="false"><span class="icon">🧪</span><span class="title">Testing</span><span class="mark">▸</span></button>
     <div class="pBody">
       <button id="btnCheat" type="button" class="wideBtn">+25 coins</button>
-      <p class="hint">Each tap adds 25 coins in a level. Balance test without playing: <code>node tools/balance_sim.js</code></p>
+      <p class="hint">Each tap adds about the price of one new gear or building (at least 25 coins). Balance test without playing: <code>node tools/balance_sim.js</code></p>
     </div>
   </section>
 
@@ -132,13 +136,13 @@
 </aside>
 <pre id="errorsPanel" class="errorsPanel" hidden></pre>
 
-<script src="js/data.js"></script>
-<script src="js/sim.js"></script>
-<script src="js/audio.js"></script>
-<script src="js/art.js"></script>
-<script src="js/audio_manifest.js"></script>
-<script src="js/notes.js"></script>
-<script src="js/family.js"></script>
-<script src="js/game.js"></script>
+<script src="js/data.js?v=0.9.1"></script>
+<script src="js/sim.js?v=0.9.1"></script>
+<script src="js/audio.js?v=0.9.1"></script>
+<script src="js/art.js?v=0.9.1"></script>
+<script src="js/audio_manifest.js?v=0.9.1"></script>
+<script src="js/notes.js?v=0.9.1"></script>
+<script src="js/family.js?v=0.9.1"></script>
+<script src="js/game.js?v=0.9.1"></script>
 </body>
 </html>
