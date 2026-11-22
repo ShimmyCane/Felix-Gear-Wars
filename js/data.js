@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var F = globalThis.FGW = globalThis.FGW || {};
-  F.version = '0.5.0';
+  F.version = '0.6.0';
 
   // ---- the world --------------------------------------------------------------------------
   F.VIEW_W = 1280;             // logical width of the screen
@@ -112,6 +112,7 @@
   F.TRAY_SHARE = 0.1; F.TRAY_MAXLEVEL = 4;
   // Free-for-all: the wave's value is this many times the value of your army at full strength (the waves climb to it over time).
   F.freeFoe = function (mode) { return { easy: 1, medium: 2, hard: 3 }[F.modeOf(mode)]; };
+  F.MAX_CHAMPIONS = 8;         // champions the player can have on the map at once (a settings slider can lower it)
   F.FREE_ARMY = 25;            // the free-for-all army limit (a slider in the settings goes up to 50)
   F.UNIT_CAP = function (type) { var i = F.UNIT_ORDER.indexOf(type); return i < 0 ? F.MAX_UNITS : 5 * (i + 1); };
 

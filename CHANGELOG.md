@@ -2,6 +2,11 @@
 
 Newest first. The version number is `F.version` in `js/data.js`; the balance numbers are in `research/balance.md`.
 
+## 0.6.0
+
+- **At most eight champions on the map** for the player. The crown gear waits while you have eight.
+- **Settings slider** for the champion limit (1 to 8, default 8).
+
 ## 0.5.0
 
 - **Multipliers cost four times as much.** The 1X, 2X, 4X and 8X prices are now 60, 160, 440 and 1,200 (were 15, 40, 110 and 300).

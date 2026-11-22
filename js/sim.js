@@ -40,6 +40,7 @@
     this.specialty = o.specialty || null;      // the culture's starred fighter (+25%); the screen sets it
     this.pool = cfg.pool.concat(cfg.specials || []);
     F.multTiers(cfg.free ? 0 : cfg.ch).forEach(function (v) { this.pool.push('mult@' + v); }, this);
+    this.maxChamps = o.champMax || F.MAX_CHAMPIONS;                                                       // the player's champions on the map at once
     this.maxArmy = cfg.free ? (o.armyMax || F.FREE_ARMY) : F.MAX_UNITS;                                  // free-for-all: 25 by default, up to 50 in the settings
     this.maxEnemy = cfg.free ? Math.ceil(this.maxArmy * F.freeFoe(cfg.mode)) : F.MAX_UNITS;             // the enemy army: 1x, 2x or 3x yours by mode
     this.tray = [null, null, null];
@@ -576,6 +577,9 @@
     return false;
   };
   // Fighters of one kind alive on that side (the cap per kind).
+  P.countChampions = function (side) {
+    var n = 0; for (var i = 0; i < this.units.length; i++) { var o = this.units[i]; if (o.side === side && o.champ && !o.dead && o.state !== 'dying') n++; } return n;
+  };
   P.typeCount = function (type, side) {
     var n = 0; for (var i = 0; i < this.units.length; i++) { var o = this.units[i]; if (o.side === side && o.type === type && !o.dead && o.state !== 'dying') n++; } return n;
   };
@@ -790,7 +794,7 @@
         this.emit({ k: 'pop', gear: g.id, c: g.c, r: g.r, unit: u.id, type: g.type, level: g.level });
         g.charge -= need;
       } else if (g.type === 'boss') {
-        if (allies >= this.maxArmy) { g.charge = need; return; }
+        if (allies >= this.maxArmy || this.countChampions('ally') >= this.maxChamps) { g.charge = need; return; }
         var ct = this.pickChampion();
         var bu = this.makeUnit('ally', ct, g.level, this.dropX(g.c), false);
         allies++;

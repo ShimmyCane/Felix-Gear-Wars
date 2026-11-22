@@ -20,7 +20,7 @@
   window.addEventListener('unhandledrejection', function (ev) { GW.err('Promise error', ev.reason); });
 
   // ---- settings and progress (device storage, always in try/catch) -----------------------------
-  var DEF = { armyMax: 25, mode: 'medium', showFun: 0, funPeak: 3, funFade: 7, challenge: 1, bossRevs: 20, voice: 'auto', heartSpeed: 1, theme: 'manuscript', sfx: 0.8, music: 0.5, speed: 1, quick: 0, follow: 1, reading: 'auto', showErrors: 0 };
+  var DEF = { champMax: 8, armyMax: 25, mode: 'medium', showFun: 0, funPeak: 3, funFade: 7, challenge: 1, bossRevs: 20, voice: 'auto', heartSpeed: 1, theme: 'manuscript', sfx: 0.8, music: 0.5, speed: 1, quick: 0, follow: 1, reading: 'auto', showErrors: 0 };
   var S = Object.assign({}, DEF);
   try { var raw = JSON.parse(localStorage.getItem('fgw.settings') || '{}'); Object.keys(DEF).forEach(function (k) { if (raw[k] !== undefined) S[k] = raw[k]; }); } catch (e) { /* storage blocked */ }
   function saveSettings() { try { localStorage.setItem('fgw.settings', JSON.stringify(S)); } catch (e) { /* ignore */ } }
@@ -61,7 +61,7 @@
   var drag = null, hudBtns = [], pointers = {};
   var pendingHole = null, lastDraw = 0;     // a peg waiting for its second tap to be cleared; last time the screen was drawn
   function makeSim(c) {
-    cfg = c; sim = new F.Sim(c, { seed: (Math.random() * 1e9) | 0, armyMax: +S.armyMax || F.FREE_ARMY, heartSpeed: +S.heartSpeed || 1, specialty: Art.specialty(), funPeak: +S.funPeak || 3, funFade: +S.funFade || 7, challenge: +S.challenge || 1 });
+    cfg = c; sim = new F.Sim(c, { seed: (Math.random() * 1e9) | 0, armyMax: +S.armyMax || F.FREE_ARMY, champMax: +S.champMax || F.MAX_CHAMPIONS, heartSpeed: +S.heartSpeed || 1, specialty: Art.specialty(), funPeak: +S.funPeak || 3, funFade: +S.funFade || 7, challenge: +S.challenge || 1 });
     sim.speed = F.SPEEDS.indexOf(+S.speed) >= 0 ? +S.speed : 1; pendingHole = null; scroll = 0; parts = []; bolts = []; falls = {}; banner = null; selSlot = -1; selGear = 0; info = null; ended = false; endTimer = 0; paused = false;
     layout();
   }
@@ -600,6 +600,7 @@
     var br2 = $('bossRevs'); if (br2) { br2.value = S.bossRevs; $('bossRevsVal').textContent = '1 : ' + S.bossRevs; }
     F.BOSS_REVS = +S.bossRevs || 20;
     var am = $('armyMax'); if (am) { am.value = S.armyMax; $('armyMaxVal').textContent = S.armyMax; }
+    var cm = $('champMax'); if (cm) { cm.value = S.champMax; $('champMaxVal').textContent = S.champMax; }
     var hs = $('heartSpeed'); if (hs) { hs.value = S.heartSpeed; $('heartSpeedVal').textContent = '×' + (+S.heartSpeed).toFixed(2).replace(/0$/, ''); }
     Art.setTheme(S.theme); Au.setVolumes(+S.sfx, +S.music);
     if (sim) sim.specialty = Art.specialty();
@@ -629,6 +630,8 @@
     GW.applyFun = applyFun;
     var br = $('bossRevs');
     br.addEventListener('input', function () { S.bossRevs = +br.value; F.BOSS_REVS = S.bossRevs; saveSettings(); $('bossRevsVal').textContent = '1 : ' + S.bossRevs; });
+    var cm2 = $('champMax');
+    if (cm2) cm2.addEventListener('input', function () { S.champMax = +cm2.value; saveSettings(); $('champMaxVal').textContent = S.champMax; if (sim) sim.maxChamps = S.champMax; });
     var am2 = $('armyMax');
     am2.addEventListener('input', function () { S.armyMax = +am2.value; saveSettings(); $('armyMaxVal').textContent = S.armyMax; if (sim && cfg.free) { sim.maxArmy = S.armyMax; sim.maxEnemy = Math.ceil(S.armyMax * F.freeFoe(cfg.mode)); } });
     var hs = $('heartSpeed');
