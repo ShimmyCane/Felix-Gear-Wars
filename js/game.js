@@ -62,7 +62,7 @@
   var pendingHole = null, lastDraw = 0;     // a peg waiting for its second tap to be cleared; last time the screen was drawn
   function makeSim(c) {
     cfg = c; sim = new F.Sim(c, { seed: (Math.random() * 1e9) | 0, armyMax: +S.armyMax || F.FREE_ARMY, champMax: +S.champMax || F.MAX_CHAMPIONS, heartSpeed: +S.heartSpeed || 1, specialty: Art.specialty(), funPeak: +S.funPeak || 3, funFade: +S.funFade || 7, challenge: +S.challenge || 1 });
-    sim.speed = F.SPEEDS.indexOf(+S.speed) >= 0 ? +S.speed : 1; pendingHole = null; scroll = 0; parts = []; bolts = []; falls = {}; banner = null; selSlot = -1; selGear = 0; info = null; ended = false; endTimer = 0; paused = false;
+    sim.speed = F.SPEEDS.indexOf(+S.speed) >= 0 ? +S.speed : 1; pendingHole = null; b2Bld = null; b2Slot = -1; scroll = 0; parts = []; bolts = []; falls = {}; banner = null; selSlot = -1; selGear = 0; info = null; ended = false; endTimer = 0; paused = false;
     layout();
   }
 
@@ -174,7 +174,12 @@
     else if (sim.status === 'running' && sim.waveIdx + 1 < sim.waveCount && sim.waveTimer > 2) add('next', 'next', 96, Art.C('#8fd18a'));
     hudBtns.forEach(function (b) { button(c, b); });
     // pace of the next wave
-    if (sim.status === 'running' && sim.waveIdx + 1 < sim.waveCount && isFinite(sim.waveTimer)) {
+    if (sim.book === 2) {
+      txt(c, 'food ' + Math.floor(sim.res.food) + '   wood ' + Math.floor(sim.res.wood) + '   runes ' + Math.floor(sim.res.runes), 560, hy + 17, 16, T.text, 'left', '800');
+      var tr = sim.buildings.filter(function (x) { return x.queue.length; }).slice(0, 3).map(function (x) { return F.B2_BUILDINGS[x.type].name + ' ' + Math.ceil(x.queue[0].left) + 's'; });
+      txt(c, tr.length ? 'Training: ' + tr.join('  ·  ') : 'Tap a building to train units', 560, hy + 39, 14, T.text, 'left', '600');
+    }
+    if (sim.status === 'running' && sim.waveIdx + 1 < sim.waveCount && isFinite(sim.waveTimer) && sim.book !== 2) {
       var wt = Math.max(0, sim.waveTimer), fr = 1 - Math.min(1, wt / sim.gap);
       c.fillStyle = 'rgba(0,0,0,0.15)'; Art.rr(c, 560, 44, 150, 8, 4); c.fill(); c.fillStyle = Art.C('#e0a43a'); Art.rr(c, 560, 44, Math.max(3, 150 * fr), 8, 4); c.fill();
       txt(c, 'next wave', 560, 29, 14, Art.theme.text, 'left', '600');
@@ -369,7 +374,10 @@
     var sh = shake > 0.3 ? [(Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake] : [0, 0]; c.translate(sh[0], sh[1]);
     if (sim) {
       hudBtns = [];
-      drawBattle(c); drawBoard(c); drawTray(c); drawHUD(c); drawMini(c); if (+S.showFun) drawFun(c);
+      drawBattle(c);
+      if (sim.book === 2) { drawB2Board(c); drawB2Tray(c); } else { drawBoard(c); drawTray(c); }
+      drawHUD(c); drawMini(c); if (+S.showFun) drawFun(c);
+      if (sim.book === 2) drawB2Popup(c);
       if (drag && drag.moved) {
         if (drag.kind === 'gear') { var g = drag.gear; g.need = F.ticksNeeded(g.type, g.level); Art.drawGear(c, g, drag.x, drag.y - 12, L.cs / 2 * 1.08, gearAngle(g), { glow: true }); }
         else if (drag.kind === 'card') { var ty = sim.tray[drag.slot]; if (ty) { var tp = F.trayParts(ty); Art.drawGear(c, { type: tp.type, level: tp.level, charge: 0, need: F.ticksNeeded(tp.type, tp.level), active: false, locked: false, pulse: 0 }, drag.x, drag.y - 12, L.cs / 2 * 1.08, tAnim, { glow: true }); } }
@@ -424,6 +432,107 @@
     scroll += (target - scroll) * Math.min(1, dt * 2.2);
   }
 
+  // ---- book 2 screen: plots, shop cards, the building popup, and taps --------------------------------------------
+  var b2Bld = null, b2Slot = -1;     // the building whose popup is open; the shop card selected for placing
+  var B2COL = { food: '#8fd18a', wood: '#b8844a', runes: '#9b6bd1', gold: '#f2c94c', unit: '#7aa2d9' };
+  function nextCfg(c, step) {
+    var o = { quick: +S.quick, mode: S.mode };
+    if (c.book === 2) { var i = Math.min(44, c.idx + step); return F.b2Config(Math.floor(i / 3) + 1, i % 3 + 1, o); }
+    if (c.free) return F.freeConfig(o);
+    var j = c.idx + step; return F.levelConfig(Math.floor(j / 3) + 1, j % 3 + 1, o);
+  }
+  function plotXY(i) { return [cellX(i % 3), cellY(Math.floor(i / 3))]; }
+  function findB(id) { return sim.buildings.filter(function (x) { return x.id === id; })[0]; }
+  function b2PopupRect() { return { x: 250, y: 140, w: 780, h: 240 }; }
+  function b2TrainRect(i) { var R = b2PopupRect(); return { x: R.x + 20 + i * 250, y: R.y + 90, w: 230, h: 62 }; }
+  function b2UpgradeRect() { var R = b2PopupRect(); return { x: R.x + 20, y: R.y + 170, w: 470, h: 50 }; }
+  function b2RefreshRect() { var t = L.tray; return { x: t.x + 12, y: t.y + t.h - 40, w: 140, h: 30 }; }
+  function drawB2Board(c) {
+    var T = Art.theme, i;
+    panel(c, L.bx, L.by, L.bw, L.bh, Art.C(T.panel2), 18);
+    for (i = 0; i < sim.plotX.length; i++) {
+      var p = plotXY(i), s = L.cs * 0.84, bid = sim.plotUse[i], b = bid ? findB(bid) : null, B = b ? F.B2_BUILDINGS[b.type] : null;
+      var hot = !b && b2Slot >= 0;
+      panel(c, p[0] - s / 2, p[1] - s / 2, s, s, Art.C(b ? B2COL[B.kind === 'res' ? B.makes : 'unit'] : T.panel), 12);
+      if (hot) { c.strokeStyle = Art.C('#ffd24a'); c.lineWidth = 3; c.setLineDash([6, 5]); Art.rr(c, p[0] - s / 2 + 3, p[1] - s / 2 + 3, s - 6, s - 6, 10); c.stroke(); c.setLineDash([]); }
+      if (b) {
+        if (b2Bld === b.id) { c.strokeStyle = Art.C('#fff2a0'); c.lineWidth = 4; Art.rr(c, p[0] - s / 2 - 2, p[1] - s / 2 - 2, s + 4, s + 4, 14); c.stroke(); }
+        txt(c, B.name, p[0], p[1] - 8, 13, Art.ink, 'center', '900');
+        txt(c, 'lv ' + b.level + (b.queue.length ? '  ·  ' + b.queue.length + ' training' : ''), p[0], p[1] + 12, 12, Art.ink, 'center', '700');
+      } else txt(c, 'plot ' + (i + 1), p[0], p[1] + 4, 13, T.text, 'center', '700');
+    }
+  }
+  function drawB2Tray(c) {
+    var T = Art.theme, t = L.tray, cards = cardRects(), i;
+    panel(c, t.x, t.y, t.w, t.h, Art.C(T.panel), 18);
+    for (i = 0; i < 3; i++) {
+      var r = cards[i], key = sim.tray[i], B = key ? F.B2_BUILDINGS[key] : null, can = B && sim.coins >= B.cost && sim.res.wood >= B.wood && sim.res.runes >= B.runes;
+      panel(c, r.x, r.y, r.w, r.h, b2Slot === i ? Art.C(T.gold2) : Art.C(T.panel2), 14);
+      if (B) {
+        txt(c, B.name, r.x + r.w / 2, r.y + 20, 15, T.text, 'center', '800');
+        coinIcon(c, r.x + r.w / 2 - 22, r.y + 40, 9); txt(c, String(B.cost), r.x + r.w / 2 - 10, r.y + 41, 18, can ? T.text : Art.C('#c0392b'), 'left', '900');
+        var extra = (B.wood ? 'wood ' + B.wood : '') + (B.wood && B.runes ? '  ' : '') + (B.runes ? 'runes ' + B.runes : '');
+        if (extra) txt(c, extra, r.x + r.w / 2, r.y + 60, 12, T.text, 'center', '700');
+      }
+    }
+    var rb = b2RefreshRect();
+    panel(c, rb.x, rb.y, rb.w, rb.h, Art.C(T.btn), 12);
+    txt(c, 'new shop: 10', rb.x + rb.w / 2, rb.y + 20, 13, T.text, 'center', '800');
+    txt(c, 'Tap a card, then a plot. Tap a building to train.', t.x + 160, t.y + t.h - 22, 13, T.text, 'left', '600');
+  }
+  function drawB2Popup(c) {
+    if (!b2Bld) return;
+    var b = findB(b2Bld); if (!b) { b2Bld = null; return; }
+    var B = F.B2_BUILDINGS[b.type], R = b2PopupRect(), T = Art.theme, i;
+    c.fillStyle = 'rgba(30,20,10,0.35)'; c.fillRect(0, 0, W, H);
+    panel(c, R.x, R.y, R.w, R.h, Art.C(T.panel), 18);
+    txt(c, B.name + '  ·  level ' + b.level, R.x + 20, R.y + 34, 22, T.text, 'left', '900');
+    txt(c, 'x', R.x + R.w - 28, R.y + 30, 22, T.text, 'center', '900');
+    var q = sim.b2Countdown(b.id);
+    txt(c, q.length ? 'Training: ' + q.map(function (x) { return F.UNITS[x.type].name + ' ' + Math.ceil(x.left) + 's'; }).join('   ') : 'Nothing in training', R.x + 20, R.y + 66, 15, T.text, 'left', '700');
+    if (B.units) B.units.forEach(function (u, k) {
+      var r = b2TrainRect(k), locked = F.b2Unlocked(sim.cfg.ch).indexOf(u) < 0;
+      panel(c, r.x, r.y, r.w, r.h, Art.C(locked ? T.panel2 : T.btn), 14);
+      txt(c, F.UNITS[u].name, r.x + r.w / 2, r.y + 24, 16, T.text, 'center', '800');
+      txt(c, locked ? 'not yet' : 'food ' + F.UNITS[u].cost, r.x + r.w / 2, r.y + 46, 14, T.text, 'center', '700');
+    });
+    var ur = b2UpgradeRect();
+    if (b.level < 3) {
+      panel(c, ur.x, ur.y, ur.w, ur.h, Art.C(T.btn), 14);
+      txt(c, 'Upgrade to level ' + (b.level + 1) + ': ' + 60 * b.level + ' gold, ' + 20 * b.level + ' wood', ur.x + ur.w / 2, ur.y + 31, 15, T.text, 'center', '800');
+    } else txt(c, 'Fully upgraded', ur.x + ur.w / 2, ur.y + 31, 15, T.text, 'center', '800');
+  }
+  function b2Tap(x, y) {
+    if (b2Bld) {
+      var b = findB(b2Bld), R = b2PopupRect();
+      if (b) {
+        var B = F.B2_BUILDINGS[b.type];
+        if (B.units) B.units.forEach(function (u, k) { if (hit(b2TrainRect(k), x, y)) say(trainMsg(sim.b2Train(b.id, u), u)); });
+        if (hit(b2UpgradeRect(), x, y)) say(upgradeMsg(sim.b2Upgrade(b.id)));
+      }
+      if (!hit(R, x, y) || hit({ x: R.x + R.w - 50, y: R.y, w: 50, h: 50 }, x, y)) b2Bld = null;
+      return;
+    }
+    var cell = cellAt(x, y);
+    if (cell && cell[1] * 3 + cell[0] < sim.plotX.length) {
+      var plot = cell[1] * 3 + cell[0];
+      if (sim.plotUse[plot]) { b2Bld = sim.plotUse[plot]; Au.play('tap'); return; }
+      if (b2Slot >= 0) { var res = sim.b2Place(b2Slot, plot); if (res === 'ok') { b2Slot = -1; Au.play('place'); } else say(placeMsg(res)); }
+      else say('Tap a building card first, then a plot');
+      return;
+    }
+    var cards = cardRects(), i;
+    for (i = 0; i < 3; i++) if (hit(cards[i], x, y) && sim.tray[i]) { b2Slot = b2Slot === i ? -1 : i; Au.play('tap'); return; }
+    if (hit(b2RefreshRect(), x, y)) { if (!sim.refreshTray()) say('Not enough coins'); else Au.play('tap'); }
+  }
+  function trainMsg(r, u) {
+    var name = F.UNITS[u].name;
+    return r === 'ok' ? name + ' is in training' : r === 'food' ? 'Not enough food for a ' + name : r === 'full' ? 'The queue is full (three)' : r === 'locked' ? name + ' is not unlocked yet' : 'Nothing to train';
+  }
+  function upgradeMsg(r) { return r === 'ok' ? 'Upgraded' : r === 'poor' ? 'Not enough gold or wood' : 'Fully upgraded'; }
+  function placeMsg(r) { return r === 'poor' ? 'Not enough gold, wood or runes' : r === 'blocked' ? 'That plot is taken' : 'Nothing to place'; }
+  function book2Unlocked(ch, lv) { var idx = (ch - 1) * 3 + (lv - 1); if (idx === 0) return true; var p = idx - 1, pc = Math.floor(p / 3) + 1, pl = p % 3 + 1; return (P.stars['b2c' + pc + 'l' + pl] || 0) > 0; }
+
   // ---- input --------------------------------------------------------------------------------------
   function toLogical(e) { var r = cv.getBoundingClientRect(); return [(e.clientX - r.left - OX) / SC, (e.clientY - r.top - OY) / SC]; }
   function hit(b, x, y) { return x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h; }
@@ -433,6 +542,7 @@
     try { cv.setPointerCapture(e.pointerId); } catch (er) { /* ignore */ }
     for (i = 0; i < hudBtns.length; i++) if (hit(hudBtns[i], x, y)) { hudBtns[i].down = true; drag = { kind: 'btn', btn: hudBtns[i], x: x, y: y }; return; }
     if (paused) return;
+    if (sim.book === 2) { drag = { kind: 'b2', x: x, y: y, sx: x, sy: y, moved: false }; return; }
     var cards = cardRects();
     for (i = 0; i < 3; i++) if (sim.tray[i] && hit(cards[i], x, y)) { drag = { kind: 'card', slot: i, x: x, y: y, sx: x, sy: y, moved: false }; return; }
     var cell = cellAt(x, y);
@@ -453,6 +563,7 @@
   function endDrag(e) {
     if (!drag) return; var d = drag; drag = null; var p = toLogical(e), x = p[0], y = p[1];
     if (d.kind === 'btn') { d.btn.down = false; if (hit(d.btn, x, y)) onButton(d.btn.id); return; }
+    if (d.kind === 'b2') { if (!d.moved) b2Tap(x, y); return; }
     var cell = cellAt(x, y), tray = L.tray, inTray = x >= tray.x && x <= tray.x + tray.w && y >= tray.y && y <= tray.y + tray.h;
     if (d.kind === 'card') {
       if (!d.moved) { selSlot = selSlot === d.slot ? -1 : d.slot; selGear = 0; Au.play('tap'); if (selSlot >= 0) { var sp = F.trayParts(sim.tray[selSlot]); setInfoFor(sp.type, sp.level, 'Tap a free peg to place it.'); } return; }
@@ -536,6 +647,22 @@
       card.appendChild(row); box.appendChild(card);
       requestAnimationFrame(function () { try { portrait(cvs, C.n, 260, 120, false); } catch (e) { GW.err('Portrait', e); } });
     });
+    // book 2: opens when chapter 10 of book 1 is beaten; its chapters use buildings and resources
+    var b2h = document.createElement('h2'); b2h.textContent = 'Book 2: The Gear Works'; box.appendChild(b2h);
+    if (!(P.stars.c10l3 > 0)) { var lk = document.createElement('p'); lk.textContent = 'Locked: beat chapter 10 to open book 2.'; box.appendChild(lk); }
+    else F.B2_CHAPTERS.forEach(function (C) {
+      var card = document.createElement('section'); card.className = 'chapter';
+      var h = document.createElement('h3'); h.textContent = C.n + '. ' + C.title + '  (' + Art.unitName(C.unit) + ')'; card.appendChild(h);
+      var row = document.createElement('div'); row.className = 'lvRow';
+      for (var lv = 1; lv <= 3; lv++) (function (lv) {
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'lvBtn'; var id = 'b2c' + C.n + 'l' + lv, st = P.stars[id] || 0, ok = book2Unlocked(C.n, lv);
+        b.disabled = !ok; b.setAttribute('aria-label', 'Book 2 chapter ' + C.n + ' level ' + lv);
+        b.innerHTML = '<span class="lvNum">' + (lv === 3 ? '♛' : lv) + '</span><span class="lvStars">' + (ok ? '★'.repeat(st) + '☆'.repeat(3 - st) : '🔒') + '</span>';
+        b.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.b2Config(C.n, lv, { quick: +S.quick, mode: S.mode })); });
+        row.appendChild(b);
+      })(lv);
+      card.appendChild(row); box.appendChild(card);
+    });
     $('freeBest').textContent = P.freeBest ? 'best: wave ' + P.freeBest : '';
     show('map'); if (window.AppNotes) AppNotes.setContext({ item: 'map', label: 'Campaign map' });
   }
@@ -563,7 +690,7 @@
   function startLevel() {
     Au.stopSay();
     var c = cfg; var bonus = Math.min(60, (P.fails[c.id] || 0) * 20);
-    var fresh = c.free ? F.freeConfig({ quick: +S.quick, mode: S.mode }) : F.levelConfig(c.ch, c.lv, { quick: +S.quick, mode: S.mode }); fresh.coins += bonus; fresh.story = c.story;
+    var fresh = nextCfg(c, 0); fresh.coins += bonus; fresh.story = c.story;
     makeSim(fresh); show('play'); Au.init(); Au.mood('calm', fresh.ch);
     if (bonus) say('A few extra coins this time: +' + bonus);
     if (window.AppNotes) AppNotes.setContext({ item: fresh.id, label: fresh.title + ' ' + levelLabel() });
@@ -582,7 +709,7 @@
     $('resText').textContent = cfg.free ? 'Best: wave ' + P.freeBest : win ? 'Lives left ' + sim.lives + ' of ' + sim.maxLives + ' · Coins earned ' + sim.earned + ' · Enemies beaten ' + sim.kills
       : 'Next time you start with a few extra coins. Try other gears, or merge to make stronger fighters.';
     var nxt = $('resNext'), idx = cfg.idx;
-    nxt.hidden = !(win && !cfg.free && idx < 23);
+    nxt.hidden = !(win && !cfg.free && (cfg.book === 2 ? idx < 44 : true));
     $('resRetry').textContent = win ? 'Play again' : 'Try again';
     show('result');
     if (win && !cfg.free) setTimeout(function () { for (var i = 0; i < stars; i++) (function (i) { setTimeout(function () { Au.play('star', i); }, i * 260); })(i); }, 200);
@@ -652,8 +779,8 @@
     $('storyPlay').addEventListener('click', function () { Au.init(); startLevel(); });
     $('storyBack').addEventListener('click', function () { Au.stopSay(); showMap(); });
     $('storyListen').addEventListener('click', function () { if (Au.speaking()) { Au.stopSay(); listenState(false); } else playNarration(); });
-    $('resNext').addEventListener('click', function () { var i = cfg.idx + 1, ch = Math.floor(i / 3) + 1, lv = i % 3 + 1; showStory(F.levelConfig(ch, lv, { quick: +S.quick, mode: S.mode })); });
-    $('resRetry').addEventListener('click', function () { showStory(cfg.free ? F.freeConfig({ quick: +S.quick, mode: S.mode }) : F.levelConfig(cfg.ch, cfg.lv, { quick: +S.quick, mode: S.mode })); });
+    $('resNext').addEventListener('click', function () { showStory(nextCfg(cfg, 1)); });
+    $('resRetry').addEventListener('click', function () { showStory(nextCfg(cfg, 0)); });
     $('resMap').addEventListener('click', function () { showMap(); });
     $('mapFree').addEventListener('click', function () { Au.init(); showStory(F.freeConfig({ quick: +S.quick, mode: S.mode })); });
     $('verInfo').textContent = 'Felix Gear Wars ' + F.version;

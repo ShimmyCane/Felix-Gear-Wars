@@ -418,6 +418,65 @@
     };
   };
 
+
+  // ---- book 2: the Gear Works. Buildings on plots instead of pegs, resources, and terrain. --------------------------
+  // Five unit buildings make fifteen units. The unit introduced in each chapter is listed in B2_SEQ; the counts check out at
+  // chapter 9 (nine units), chapter 12 (twelve) and chapter 15 (fifteen).
+  // Five new units (crossbow, apprentice, battlemage, rider, healer) reuse a drawing from book 1 through `draw`.
+  F.UNITS.crossbow   = { name: 'Crossbowman', cost: 55, hp: 70, atk: 20, def: 3, range: 360, speed: 36, cd: 1.6, kind: 'ranged', shield: 0.55, draw: 'archer', vs: {}, order: 0 };
+  F.UNITS.apprentice = { name: 'Apprentice', cost: 45, hp: 40, atk: 12, def: 1, range: 250, speed: 40, cd: 1.3, kind: 'ranged', magic: true, splash: 50, draw: 'mage', vs: {}, order: 0 };
+  F.UNITS.battlemage = { name: 'Battlemage', cost: 120, hp: 90, atk: 34, def: 4, range: 300, speed: 36, cd: 1.8, kind: 'ranged', magic: true, splash: 90, draw: 'mage', vs: {}, order: 0 };
+  F.UNITS.rider      = { name: 'Rider', cost: 80, hp: 110, atk: 15, def: 6, range: 56, speed: 130, cd: 0.9, kind: 'melee', charge: 1.6, draw: 'knight', vs: {}, order: 0 };
+  F.UNITS.healer     = { name: 'Healer', cost: 70, hp: 90, atk: 6, def: 4, range: 200, speed: 44, cd: 1.6, kind: 'ranged', magic: true, power: 'heal', draw: 'monk', vs: {}, order: 0 };
+  F.B2_SEQ = ['spearman', 'archer', 'mage', 'knight', 'fighter', 'catapult', 'apprentice', 'rider', 'monk', 'tank', 'assassin', 'shield', 'crossbow', 'healer', 'battlemage'];
+  F.B2_BUILDINGS = {
+    farm:     { name: 'Farm', kind: 'res', makes: 'food', rate: 1.0, cost: 40, wood: 0, runes: 0, unlock: 1 },
+    sawmill:  { name: 'Sawmill', kind: 'res', makes: 'wood', rate: 0.8, cost: 40, wood: 0, runes: 0, unlock: 1 },
+    mine:     { name: 'Mine', kind: 'res', makes: 'runes', rate: 0.5, cost: 60, wood: 0, runes: 0, unlock: 2 },
+    market:   { name: 'Market', kind: 'res', makes: 'gold', rate: 1.2, cost: 60, wood: 0, runes: 0, unlock: 2 },
+    barracks: { name: 'Barracks', kind: 'unit', units: ['spearman', 'fighter', 'tank'], cost: 80, wood: 20, runes: 0, unlock: 1 },
+    archery:  { name: 'Archery workshop', kind: 'unit', units: ['archer', 'catapult', 'crossbow'], cost: 90, wood: 30, runes: 0, unlock: 2 },
+    wizards:  { name: 'Wizards tower', kind: 'unit', units: ['mage', 'apprentice', 'battlemage'], cost: 110, wood: 0, runes: 10, unlock: 3 },
+    stables:  { name: 'Stables', kind: 'unit', units: ['knight', 'rider', 'assassin'], cost: 120, wood: 40, runes: 0, unlock: 4 },
+    church:   { name: 'Church', kind: 'unit', units: ['monk', 'shield', 'healer'], cost: 120, wood: 0, runes: 20, unlock: 9 },
+  };
+  // the unit and building for each chapter: the unit introduced there, and the terrain it is fought on
+  F.B2_CHAPTERS = [
+    { n: 1, title: 'The Gear Works',       unit: 'spearman',   terrain: [] },
+    { n: 2, title: 'Arrows in the Trees',  unit: 'archer',     terrain: [{ x0: 1100, x1: 1500, kind: 'trees' }] },
+    { n: 3, title: 'The Wizards\' Marsh',  unit: 'mage',       terrain: [{ x0: 900, x1: 1400, kind: 'marsh' }] },
+    { n: 4, title: 'The Iron Stables',     unit: 'knight',     terrain: [{ x0: 1200, x1: 1700, kind: 'hills' }] },
+    { n: 5, title: 'Barracks in the Hills', unit: 'fighter',   terrain: [{ x0: 600, x1: 900, kind: 'trees' }, { x0: 1500, x1: 1900, kind: 'hills' }] },
+    { n: 6, title: 'Siege by the Pines',   unit: 'catapult',   terrain: [{ x0: 700, x1: 1100, kind: 'marsh' }, { x0: 1600, x1: 2000, kind: 'trees' }] },
+    { n: 7, title: 'Apprentices in Fog',   unit: 'apprentice', terrain: [{ x0: 500, x1: 800, kind: 'marsh' }, { x0: 1300, x1: 1800, kind: 'hills' }] },
+    { n: 8, title: 'Riders on the Ridge',  unit: 'rider',      terrain: [{ x0: 1000, x1: 1500, kind: 'hills' }, { x0: 1800, x1: 2200, kind: 'trees' }] },
+    { n: 9, title: 'The Bell Tower',       unit: 'monk',       terrain: [{ x0: 700, x1: 1000, kind: 'trees' }, { x0: 1400, x1: 1900, kind: 'marsh' }] },
+    { n: 10, title: 'The Iron Bulwark',    unit: 'tank',       terrain: [{ x0: 800, x1: 1200, kind: 'hills' }, { x0: 1600, x1: 2000, kind: 'marsh' }] },
+    { n: 11, title: 'Shadows at the Mill', unit: 'assassin',   terrain: [{ x0: 500, x1: 900, kind: 'trees' }, { x0: 1200, x1: 1700, kind: 'marsh' }] },
+    { n: 12, title: 'The Bronze Shield Hall', unit: 'shield',  terrain: [{ x0: 900, x1: 1300, kind: 'hills' }, { x0: 1700, x1: 2100, kind: 'trees' }] },
+    { n: 13, title: 'Crossbows at Dusk',   unit: 'crossbow',   terrain: [{ x0: 600, x1: 1000, kind: 'marsh' }, { x0: 1400, x1: 1900, kind: 'hills' }] },
+    { n: 14, title: 'The Healing Ford',    unit: 'healer',     terrain: [{ x0: 800, x1: 1200, kind: 'trees' }, { x0: 1500, x1: 2000, kind: 'marsh' }] },
+    { n: 15, title: 'The Battlemage Keep', unit: 'battlemage', terrain: [{ x0: 500, x1: 900, kind: 'hills' }, { x0: 1100, x1: 1600, kind: 'trees' }, { x0: 1800, x1: 2300, kind: 'marsh' }] },
+  ];
+  F.B2_BOSS = { 3: 'The Marsh Witch', 6: 'Lord of the Pines', 9: 'The Bell Keeper', 12: 'Bronze Warden', 15: 'The Battlemage King' };
+  F.B2_PLOTS = 6;              // building plots along the front of the map
+  F.b2Unlocked = function (ch) { var res = []; for (var i = 0; i < ch; i++) res.push(F.B2_SEQ[i]); return res; };
+  F.b2Buildings = function (ch) { return Object.keys(F.B2_BUILDINGS).filter(function (k) { return F.B2_BUILDINGS[k].unlock <= ch; }); };
+  F.b2UnitTime = function (type) { return 6 + 2 * F.tierOf(type === 'monk' ? 'monk' : type) / 4; };   // seconds to train a unit
+  F.b2Config = function (ch, lv, o) {
+    o = o || {}; var idx = (ch - 1) * 3 + (lv - 1), C = F.B2_CHAPTERS[ch - 1];
+    var pool = F.b2Unlocked(ch), gold = 150 + 15 * idx;
+    return {
+      id: 'b2c' + ch + 'l' + lv, book: 2, ch: ch, lv: lv, idx: idx, seed: 5000 + idx * 77, free: false, world: 2560,
+      board: { cols: 3, rows: 2, heart: { c: 0, r: 0 }, holes: [], dormant: [] },
+      lives: 20 + 5 * ch, coins: gold, creep: 0, gearTarget: 0, lastWave: 5 + idx, dynamic: true, len: 1, waves: [],
+      bossName: lv === 3 ? F.B2_BOSS[ch] || null : null, bossType: lv === 3 ? C.unit : null,
+      baseHp: F.TUNE.fort + F.TUNE.fortPer * idx, pool: pool, specials: [], quick: !!o.quick, mode: F.modeOf(o.mode),
+      terrain: C.terrain, plots: F.B2_PLOTS, res: { food: 60, wood: 40, runes: 20 },
+      story: { cap: 'Chapter ' + ch + ': ' + C.title, short: Art_unit(C.unit) + ' joins the Works.', story: 'In the Gear Works, ' + C.unit + ' is the new unit. Build the buildings that make it, and keep the Horde back.' },
+    };
+  };
+  function Art_unit(t) { return F.UNITS[t] ? F.UNITS[t].name : t; }
   F.weightedPick = weightedPick;
   F.enemyScale = function (idx) {
     return { hp: 1 + F.TUNE.hp * idx, atk: 1 + F.TUNE.atk * idx, def: 1 + 0.03 * idx };

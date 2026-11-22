@@ -39,7 +39,12 @@
     this.startT = 0; this.faded = false;
     this.specialty = o.specialty || null;      // the culture's starred fighter (+25%); the screen sets it
     this.pool = cfg.pool.concat(cfg.specials || []);
-    F.multTiers(cfg.free ? 0 : cfg.ch).forEach(function (v) { this.pool.push('mult@' + v); }, this);
+    // book 2: resources, buildings on plots, unit queues and terrain (no multipliers, no pegboard)
+    this.book = cfg.book || 0; this.terrain = cfg.terrain || [];
+    this.res = Object.assign({ food: 0, wood: 0, runes: 0 }, cfg.res || {});
+    this.buildings = []; this.plotUse = {}; this.plotX = [];
+    for (var pi = 0; pi < (cfg.plots || 0); pi++) this.plotX.push(180 + pi * 100);
+    if (!this.book) F.multTiers(cfg.free ? 0 : cfg.ch).forEach(function (v) { this.pool.push('mult@' + v); }, this);
     this.maxChamps = o.champMax || F.MAX_CHAMPIONS;                                                       // the player's champions on the map at once
     this.maxArmy = cfg.free ? (o.armyMax || F.FREE_ARMY) : F.MAX_UNITS;                                  // free-for-all: 25 by default, up to 50 in the settings
     this.maxEnemy = cfg.free ? Math.ceil(this.maxArmy * F.freeFoe(cfg.mode)) : F.MAX_UNITS;             // the enemy army: 1x, 2x or 3x yours by mode
@@ -272,6 +277,7 @@
     return pool[0];
   };
   P.rollTray = function () {
+    if (this.book === 2) { var bs = F.b2Buildings(this.cfg.ch); for (var bi = 0; bi < 3; bi++) this.tray[bi] = bs[Math.floor(this.rnd() * bs.length)]; return; }
     for (var i = 0; i < 3; i++) this.tray[i] = this.rollOne();
     // always offer at least one fighter so a tray is never all specials
     if (!this.tray.some(function (t) { return F.UNITS[F.trayParts(t).type]; })) this.tray[0] = this.cfg.pool[this.cfg.pool.length - 1];
@@ -345,6 +351,7 @@
   // How strong is Felix right now, and how strong will he be by the time a wave arrives? In "spearman power" units.
   P.playerPower = function (window) {
     var p = 0, i, u, g, need, perSec = 4 / this.heartPeriod;
+    if (this.book === 2) { for (i = 0; i < this.buildings.length; i++) { var bb = this.buildings[i]; var BB = F.B2_BUILDINGS[bb.type]; if (BB.kind === 'unit') p += F.unitPower(BB.units[0]) * window / F.b2UnitTime(BB.units[0]) * (1 + 0.25 * (bb.level - 1)); } }
     for (i = 0; i < this.units.length; i++) {
       u = this.units[i]; if (u.side !== 'ally' || u.dead || u.state === 'dying') continue;
       p += F.unitPower(u.type) * (u.champ ? F.SM[0] * 1.6 : F.SM[u.level - 1]) * Math.max(0.2, u.hp / u.max) * (u.special ? F.SPECIALTY_BONUS : 1);
@@ -516,6 +523,69 @@
     return false;
   };
   // ---- the blob: splits into ten bits, five kills reform it; only one blob at a time ----------------------------
+  // ---- book 2: buildings, resources and unit queues ---------------------------------------------------------------
+  P.terrainAt = function (x) { for (var i = 0; i < this.terrain.length; i++) { var z = this.terrain[i]; if (x >= z.x0 && x <= z.x1) return z.kind; } return null; };
+  P.missileMul = function (x) { var k = this.terrainAt(x); return k === 'trees' ? 0.5 : k === 'marsh' ? 0.85 : 1; };
+  P.b2Place = function (slot, plot) {
+    var key = this.tray[slot], B = F.B2_BUILDINGS[key];
+    if (this.book !== 2 || !B) return 'none';
+    if (this.plotUse[plot] || plot < 0 || plot >= this.plotX.length) return 'blocked';
+    if (this.coins < B.cost) return 'poor';
+    if (this.res.wood < B.wood || this.res.runes < B.runes) return 'poor';
+    this.coins -= B.cost; this.res.wood -= B.wood; this.res.runes -= B.runes; this.spent += B.cost;
+    var b = { id: this.nid++, type: key, plot: plot, x: this.plotX[plot], level: 1, queue: [], kind: B.kind };
+    this.buildings.push(b); this.plotUse[plot] = b.id;
+    this.tray[slot] = this.b2Shop(slot);
+    this.emit({ k: 'place', id: b.id });
+    return 'ok';
+  };
+  P.b2Shop = function (slot) { var bs = F.b2Buildings(this.cfg.ch); return bs[Math.floor(this.rnd() * bs.length)]; };
+  P.b2Train = function (bid, unit) {
+    var b = this.buildings.filter(function (x) { return x.id === bid; })[0];
+    if (!b || b.kind !== 'unit') return 'none';
+    if (F.B2_BUILDINGS[b.type].units.indexOf(unit) < 0 || F.b2Unlocked(this.cfg.ch).indexOf(unit) < 0) return 'locked';
+    if (b.queue.length >= 3) return 'full';
+    var cost = F.UNITS[unit].cost;
+    if (this.res.food < cost) return 'food';
+    this.res.food -= cost;
+    b.queue.push({ type: unit, left: F.b2UnitTime(unit) / (1 + 0.25 * (b.level - 1)), total: F.b2UnitTime(unit) / (1 + 0.25 * (b.level - 1)) });
+    return 'ok';
+  };
+  P.b2Upgrade = function (bid) {
+    var b = this.buildings.filter(function (x) { return x.id === bid; })[0];
+    if (!b || b.level >= 3) return 'none';
+    var gold = 60 * b.level, wood = 20 * b.level;
+    if (this.coins < gold || this.res.wood < wood) return 'poor';
+    this.coins -= gold; this.res.wood -= wood; this.spent += gold; b.level++;
+    return 'ok';
+  };
+  P.b2Tick = function (dt) {
+    var i, b, B;
+    for (i = 0; i < this.buildings.length; i++) {
+      b = this.buildings[i]; B = F.B2_BUILDINGS[b.type];
+      if (B.kind === 'res') {
+        var made = B.rate * (1 + 0.5 * (b.level - 1)) * dt;
+        if (B.makes === 'gold') this.coins += made; else this.res[B.makes] += made;
+        this.earned += B.makes === 'gold' ? made : 0;
+      } else if (b.queue.length) {
+        var q = b.queue[0]; q.left -= dt;
+        if (q.left <= 0) {
+          var ally = 0; for (var k = 0; k < this.units.length; k++) if (this.units[k].side === 'ally' && !this.units[k].dead) ally++;
+          if (ally >= this.maxArmy || this.typeCount(q.type, 'ally') >= F.UNIT_CAP(q.type)) { q.left = 0; continue; }   // stalls until there is room
+          b.queue.shift();
+          var u = this.makeUnit('ally', q.type, 1, b.x + (this.rnd() - 0.5) * 24, false); u.bid = b.id;
+          this.emit({ k: 'pop', gear: b.id, c: 0, r: 0, unit: u.id, type: q.type, level: 1 });
+        }
+      }
+    }
+  };
+  // Book 2 level: how far the next unit is along in a building's queue (for the countdown)
+  P.b2Countdown = function (bid) {
+    var b = this.buildings.filter(function (x) { return x.id === bid; })[0];
+    return b && b.queue.length ? b.queue.map(function (q) { return { type: q.type, left: Math.max(0, q.left), total: q.total }; }) : [];
+  };
+  P.terrainLabel = function (x) { return this.terrainAt(x); };
+
   // The crown gear picks the next champion from all of them, most often the most valuable (by its power); never a second blob.
   P.pickChampion = function () {
     var blob = this.blobAlive(), list = F.CHAMP_ORDER.filter(function (k) { return !(k === 'blob' && blob); });
@@ -593,6 +663,9 @@
     var D = F.UNITS[u.type];
     if (u.slow > 0) u.slow -= dt;
     var spd = u.speed * (u.slow > 0 ? 0.4 : 1);
+    // book 2 terrain: marsh slows everyone, hills slow melee fighters; the terrain is remembered for missiles and the hill bonus
+    var tk = this.terrain.length ? this.terrainAt(u.x) : null; u.terr = tk;
+    if (tk === 'marsh') spd *= 0.6; else if (tk === 'hills' && D.kind === 'melee') spd *= 0.85;
     if (D.power === 'rally') this.rally(u, dt);
     if (D.power === 'heal') { u.healT -= dt; if (u.healT <= 0) { u.healT = 2.2; this.healAround(u); } }
     if (D.power === 'pierce') this.cartHit(u, dt);
@@ -696,7 +769,7 @@
     if (!t && !S2) return;
     if (t && (t.dead || t.state === 'dying')) return;
     if (S2 && !S2.alive) return;
-    var power = u.atk * (D.charge && !u.charged ? D.charge : 1) * this.rallyMult(u);
+    var power = u.atk * (D.charge && !u.charged ? D.charge : 1) * this.rallyMult(u) * (u.terr === 'hills' && D.kind === 'ranged' ? 1.2 : 1);
     if (D.charge) u.charged = true;
     if (D.power === 'breath') { this.breath(u, power, S2); return; }
     if (D.kind === 'ranged') {
@@ -747,14 +820,14 @@
       var direct = hits.slice(0, F.SPLASH_MAX), rest = hits.slice(F.SPLASH_MAX);
       direct.forEach(function (o) {
         var fall = 1 - Math.abs(o.x - p.x1) / (p.splash * 1.4);
-        L.hurt(o, dmgFrom(p.owner.atk, p.owner, o) * fall, null);
+        L.hurt(o, dmgFrom(p.owner.atk, p.owner, o) * fall * L.missileMul(o.x), null);
       });
       rest.forEach(function (o) { L.hurt(o, dmgFrom(p.owner.atk * 0.5 / rest.length, p.owner, o), null); });
       this.hurtStructsAt(p.x1, p.splash, p.owner.atk * (F.UNITS[p.owner.type].siege || 1) * (p.fromStruct ? 0.5 : 1), p.side);
     } else {
       var tu = null; for (var m = 0; m < this.units.length; m++) if (this.units[m].id === p.tgt) tu = this.units[m];
       if (tu && p.kind === 'stone' && tu.type === 'knight' && !tu.dead && tu.state !== 'dying') { this.emit({ k: 'dodge', x: tu.x, y: tu.y }); }
-      else if (tu && !tu.dead && tu.state !== 'dying') this.hurt(tu, dmgFrom(p.owner.atk, p.owner, tu), null);
+      else if (tu && !tu.dead && tu.state !== 'dying') this.hurt(tu, dmgFrom(p.owner.atk, p.owner, tu) * this.missileMul(tu.x), null);
       else if (p.tgtS) this.hurtStruct(this.structById(p.tgtS), p.owner.atk * (F.UNITS[p.owner.type].siege || 1));
       this.emit({ k: 'arrowhit', x: p.x1, y: p.y1, kind: p.kind });
     }
@@ -843,6 +916,7 @@
     // the heart ticks once per quarter turn: the gears get their ticks then, not continuously
     this.tickAcc += dt * 4 / this.heartPeriod;
     while (this.tickAcc >= 1) { this.tickAcc -= 1; this.ticks++; this.fillGears(1); this.emit({ k: 'tick' }); }
+    if (this.book === 2) this.b2Tick(dt);
     this.heartA += (this.ticks * Math.PI / 2 - 0.35 - this.heartA) * Math.min(1, dt * 16);
     if (this.status === 'running') {
       this.waveTimer -= dt;
