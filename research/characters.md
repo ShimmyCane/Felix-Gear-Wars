@@ -49,3 +49,9 @@ For each: what it does, how it works with the others, and how it works against.
 - Each one has a counter and a weakness, so none of them is simply better. The counters are the point.
 - Several of them fight the existing units, which the balance tool already measures (unit against unit). Add them to the `matchups` table before deciding.
 - If Jimmy picks a few, start with the three that need the least new mechanics: the standard-bearer (an aura, like the unicorn's heal), the net-thrower (a single status effect, like the cart's knock-back) and the scout (a UI effect with no combat change).
+
+## More ideas (from the author, for later units)
+
+- **Freezer.** Slows enemies. At higher levels it chooses which units to slow, and can pick the most dangerous ones.
+- **Summoner (the defensive creature).** Summons a defensive creature, and keeps summoning if its primary creature dies. At higher levels the defensive creature is trapped on destruction (it holds an enemy in place as it dies).
+- **Builder.** Builds towers that attack, heal, or garrison, and defensive structures such as spike walls. At higher levels it builds different things; a top-level builder can build an armoury that gives its units extra attacks.
