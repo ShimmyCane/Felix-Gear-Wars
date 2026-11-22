@@ -1,4 +1,6 @@
-# Book 2: plan (draft, not built)
+# Book 2: The Gear Works (built in 0.7.0)
+
+Status: built and playable: 15 chapters, five unit buildings, four resource buildings, terrain, and the book 2 screen. Balanced with `tools/balance_tune.js` (`BOOK=2`) and `tools/bot2.js`.
 
 Unlocked after chapter 10 of book 1. Same rhythm as book 1: chapters of three levels, one new unit per chapter, a boss on level 3. Book 2 adds **resources and buildings** and **terrain**. There are **no pegs**.
 
