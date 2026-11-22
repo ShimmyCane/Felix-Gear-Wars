@@ -60,8 +60,18 @@
   F.WAVE_BASE = 26;             // enemies in one wave at press 1 (harder modes allow more, see sim.js makeWave)
   F.MODE_ROYAL = { easy: 1, medium: 1.4, hard: 2 };   // how much faster the crown (royal) gear fills, by mode
   F.modeRoyal = function (m) { return F.MODE_ROYAL[F.modeOf(m)]; };
+  // Book 2 has its own press numbers (the tuner sets them): 45 levels, so the lists are longer.
+  var B2ONES = []; for (var b2i = 0; b2i < 45; b2i++) B2ONES.push(1);
+  // tuned2:begin
+  F.B2_MODE_PRESS = { easy: 1, medium: 1, hard: 1 };
+  F.B2_LEVEL_PRESS = { easy: B2ONES, medium: B2ONES, hard: B2ONES };
+  // tuned2:end
   F.modeOf = function (m) { return F.MODES[m] ? m : 'medium'; };
-  F.modePress = function (mode, idx) { var m = F.modeOf(mode); return F.MODE_PRESS[m] * ((F.LEVEL_PRESS[m] && F.LEVEL_PRESS[m][idx]) || 1); };
+  F.modePress = function (mode, idx, book) {
+    var m = F.modeOf(mode);
+    if (book === 2) return F.B2_MODE_PRESS[m] * ((F.B2_LEVEL_PRESS[m] && F.B2_LEVEL_PRESS[m][idx]) || 1);
+    return F.MODE_PRESS[m] * ((F.LEVEL_PRESS[m] && F.LEVEL_PRESS[m][idx]) || 1);
+  };
 
   // ---- fighters ---------------------------------------------------------------------------
   // tick0 = quarter turns of the heart one gear needs for one level-1 fighter. The spearman is the reference (12). The others follow

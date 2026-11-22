@@ -27,7 +27,7 @@
     this.leaks = 0; this.kills = 0; this.earned = 0; this.spent = 0; this.undo = [];
     this.es = F.enemyScale(cfg.idx);
     // With each kind of enemy capped, a bigger press cannot add more of them, so it also makes them tougher: health and attack grow with the square root of the press (above 1).
-    this.es.foe = Math.sqrt(Math.max(1, F.modePress(cfg.mode, cfg.idx)));
+    this.es.foe = Math.sqrt(Math.max(1, F.modePress(cfg.mode, cfg.idx, cfg.book)));
     var qk = cfg.quick ? 0.6 : 1;                // Quick game squeezes the whole hill
     var pace = F.modePace(cfg.mode);            // medium and hard: more time between waves, a longer hill
     this.pace = pace;
@@ -368,7 +368,7 @@
   P.makeWave = function (k) {
     var cfg = this.cfg, t = Math.max(0, this.t - this.startT), tm = t / 60, c, ratio;
     if (cfg.free) { c = Math.min(1, 0.4 + 0.08 * k); ratio = F.freeFoe(cfg.mode) * Math.min(1, 0.25 + 0.75 * k / 25) * this.fun.ch; }   // climbs over 25 waves to 1x, 2x or 3x the value of your army
-    else { c = F.funCurve(tm, this.fun.peak / 60, this.fun.fade / 60); ratio = (F.TUNE.rLow + (F.TUNE.rPeak - F.TUNE.rLow) * c) * (1 + F.TUNE.rIdx * Math.min(1, cfg.idx / 23)) * (cfg.len || 1) * this.fun.ch * F.modePress(cfg.mode, cfg.idx); }
+    else { c = F.funCurve(tm, this.fun.peak / 60, this.fun.fade / 60); ratio = (F.TUNE.rLow + (F.TUNE.rPeak - F.TUNE.rLow) * c) * (1 + F.TUNE.rIdx * Math.min(1, cfg.idx / 23)) * (cfg.len || 1) * this.fun.ch * F.modePress(cfg.mode, cfg.idx, cfg.book); }
     var es = this.es, scale = Math.sqrt(es.hp * es.atk), pool = cfg.pool, i;
     var E = this.playerPower(Math.min(30, this.gap)) * ratio;
     var floor = F.unitPower(pool[0]) * scale * (k === 0 ? 2 : 1.5);
@@ -380,7 +380,7 @@
     var list = [], got = 0, guard = 0;
     var lv = F.enemyLevel(c, cfg.idx);           // the Horde trains: its gears get stronger along the fun curve
     // a wave holds up to 26 fighters at press 1; harder modes allow bigger waves (the cap grows with the square root of the press)
-    var cap = cfg.free ? this.maxEnemy : Math.round(F.WAVE_BASE * Math.max(1, Math.sqrt(F.modePress(cfg.mode, cfg.idx))));
+    var cap = cfg.free ? this.maxEnemy : Math.round(F.WAVE_BASE * Math.max(1, Math.sqrt(F.modePress(cfg.mode, cfg.idx, cfg.book))));
     while (got < E && list.length < cap && guard++ < 160) {
       var tp = F.weightedPick(this.rnd, types); list.push({ type: tp, boss: false, level: lv }); got += F.unitPower(tp) * scale * F.SM[lv - 1];
     }

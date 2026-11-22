@@ -12,17 +12,21 @@ var fs = require('fs'), path = require('path');
 var ROOT = path.join(__dirname, '..');
 require(path.join(ROOT, 'js/data.js')); require(path.join(ROOT, 'js/sim.js'));
 var F = globalThis.FGW;
-var Bot = require('./bot.js');
+var Bot = require('./bot.js'), Bot2 = require('./bot2.js');
+// BOOK=2 tunes the book 2 levels with the book 2 bot and writes the book 2 block (tuned2) of js/data.js
+var BOOK2 = process.env.BOOK === '2';
 
 var TARGET = { easy: 0.95, medium: 0.75, hard: 0.35 };
 var BAND = { easy: [0.9, 1.0], medium: [0.6, 0.85], hard: [0.2, 0.5] };     // verify: the bot's win rate must fall in these
-var SAMPLE = [[1, 1], [1, 3], [2, 2], [3, 1], [4, 3], [5, 2], [6, 3], [7, 1], [8, 1], [8, 3], [9, 2], [10, 1]];   // spread over the campaign
-var ALL = []; for (var i = 0; i < 30; i++) ALL.push([Math.floor(i / 3) + 1, i % 3 + 1]);
+var SAMPLE = BOOK2 ? [[1, 1], [2, 2], [3, 1], [4, 3], [5, 2], [6, 1], [7, 3], [8, 2], [9, 1], [10, 3], [12, 2], [15, 1]] : [[1, 1], [1, 3], [2, 2], [3, 1], [4, 3], [5, 2], [6, 3], [7, 1], [8, 1], [8, 3], [9, 2], [10, 1]];   // spread over the campaign
+var ALL = []; for (var i = 0; i < (BOOK2 ? 45 : 30); i++) ALL.push([Math.floor(i / 3) + 1, i % 3 + 1]);
 
 function play(mode, p, seed) {
+  if (BOOK2) return Bot2.playLevel(F.b2Config(p[0], p[1], { mode: mode }), seed);
   var cfg = F.levelConfig(p[0], p[1], { mode: mode });
   return Bot.playLevel(cfg, seed);
 }
+function pressStore() { return BOOK2 ? { mode: F.B2_MODE_PRESS, level: F.B2_LEVEL_PRESS } : { mode: F.MODE_PRESS, level: F.LEVEL_PRESS }; }
 // win rate over a set of levels, `runs` seeds each
 function winRate(mode, levels, runs, seedBase) {
   var w = 0, n = 0;
@@ -31,13 +35,13 @@ function winRate(mode, levels, runs, seedBase) {
   });
   return w / n;
 }
-function setPress(mode, press) { F.MODE_PRESS[mode] = press; }
-function setLevelPress(mode, arr) { F.LEVEL_PRESS[mode] = arr.slice(); }
+function setPress(mode, press) { pressStore().mode[mode] = press; }
+function setLevelPress(mode, arr) { pressStore().level[mode] = arr.slice(); }
 
 // ---- tune one mode ----------------------------------------------------------------------------
 function tune(mode, runs) {
   var target = TARGET[mode], trace = [];
-  if (!F.LEVEL_PRESS[mode] || F.LEVEL_PRESS[mode].length !== 30) setLevelPress(mode, ALL.map(function () { return 1; }));
+  if (!pressStore().level[mode] || pressStore().level[mode].length !== ALL.length) setLevelPress(mode, ALL.map(function () { return 1; }));
   // 1. find the global press by bisection on log scale: more press, fewer wins
   var lo = Math.log(0.5), hi = Math.log(8);
   for (var it = 0; it < 7; it++) {
@@ -48,7 +52,7 @@ function tune(mode, runs) {
   }
   var press = Math.exp((lo + hi) / 2); setPress(mode, press);
   // 2. nudge each level toward the target, three rounds, new seeds each round
-  var lp = F.LEVEL_PRESS[mode].slice();
+  var lp = pressStore().level[mode].slice();
   for (var round = 0; round < 3; round++) {
     ALL.forEach(function (p, idx) {
       var w = winRate(mode, [p], runs, 5000 + round * 131 + idx * 17);
@@ -68,16 +72,18 @@ function apply(files) {
   var press = {}, lp = {};
   files.forEach(function (f) { var r = JSON.parse(fs.readFileSync(f, 'utf8')); press[r.mode] = r.press; lp[r.mode] = r.levelPress; });
   var dataPath = path.join(ROOT, 'js/data.js'), s = fs.readFileSync(dataPath, 'utf8');
-  var a = s.indexOf('  // tuned:begin'), b = s.indexOf('  // tuned:end');
-  if (a < 0 || b < 0) throw new Error('tuned block markers not found in js/data.js');
-  var cur = { easy: F.MODE_PRESS.easy, medium: F.MODE_PRESS.medium, hard: F.MODE_PRESS.hard };
+  var tag = BOOK2 ? 'tuned2' : 'tuned';
+  var a = s.indexOf('  // ' + tag + ':begin'), b = s.indexOf('  // ' + tag + ':end');
+  if (a < 0 || b < 0) throw new Error(tag + ' block markers not found in js/data.js');
+  var cur = { easy: pressStore().mode.easy, medium: pressStore().mode.medium, hard: pressStore().mode.hard };
   var pr = Object.assign({}, cur, press);
-  var cl = {}; ['easy', 'medium', 'hard'].forEach(function (m) { cl[m] = (lp[m] || F.LEVEL_PRESS[m]).map(function (v) { return +v; }); });
-  var block = '  // tuned:begin (written by tools/balance_tune.js apply; re-tune after changing the rules)\n' +
-    '  F.MODE_PRESS = { easy: ' + pr.easy + ', medium: ' + pr.medium + ', hard: ' + pr.hard + ' };\n' +
-    '  F.LEVEL_PRESS = {\n' +
-    ['easy', 'medium', 'hard'].map(function (m) { return '    ' + m + ': [' + cl[m].join(', ') + ']'; }).join(',\n') + '\n  };\n';
-  s = s.slice(0, a) + block + s.slice(b);
+  var cl = {}; ['easy', 'medium', 'hard'].forEach(function (m) { cl[m] = (lp[m] || pressStore().level[m]).map(function (v) { return +v; }); });
+  var names = BOOK2 ? ['B2_MODE_PRESS', 'B2_LEVEL_PRESS'] : ['MODE_PRESS', 'LEVEL_PRESS'];
+  var block = '  // ' + tag + ':begin (written by tools/balance_tune.js apply; re-tune after changing the rules)\n' +
+    '  F.' + names[0] + ' = { easy: ' + pr.easy + ', medium: ' + pr.medium + ', hard: ' + pr.hard + ' };\n' +
+    '  F.' + names[1] + ' = {\n' +
+    ['easy', 'medium', 'hard'].map(function (m) { return '    ' + m + ': [' + cl[m].join(', ') + ']'; }).join(',\n') + '\n  };\n  // ' + tag + ':end\n';
+  s = s.slice(0, a) + block + s.slice(s.indexOf('\n', b) + 1);
   fs.writeFileSync(dataPath, s);
   console.log('wrote tuned block: MODE_PRESS ' + JSON.stringify(pr) + ' (' + Object.keys(press).join(', ') + ' updated)');
 }
