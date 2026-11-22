@@ -31,7 +31,7 @@ function bestCell(sim, type) {
       if (sim.isHeart(nc, nr)) s += 6;
       else { var o = sim.gearAt(nc, nr); if (o) s += o.active ? 3 : 1; }
     });
-    if (type === 'mult') s = s > 0 && sim.gears.length > 2 ? s : -1;
+    if (F.trayParts(type).type === 'mult') s = s > 0 && sim.gears.length > 2 ? s : -1;
     if (s > bs) { bs = s; best = [c, r]; }
   }
   return best;

@@ -2,6 +2,22 @@
 
 Newest first. The version number is `F.version` in `js/data.js`; the balance numbers are in `research/balance.md`.
 
+## 0.4.0
+
+- **The shop matches your money.** Each gear is offered at the highest level (up to 4) whose price is at most a tenth of your coins, so a bigger bank does not mean a lot of merging. The tray shows the level pips.
+- **Free-for-all waves climb to a real challenge.** A wave's value is a share of your army's value, climbing over 25 waves to 1x (easy), 2x (medium) or 3x (hard). The enemy army can be 1x, 2x or 3x the size of yours.
+- **Free-for-all army limit.** 25 by default, with a settings slider up to 50.
+- **Champions.** The crown gear now picks its champion from all of them, most often the most valuable. Beyond five champions in your army it turns 5 turns slower for each extra champion, up to 100 turns.
+
+## 0.3.0
+
+From the notes in the family notes table (versions 0.1.0 and 0.2.0).
+
+- **The heart ticks.** Gears fill in whole ticks, only when the heart ticks, and the heart and gears snap a quarter turn each time (they no longer turn continuously).
+- **Army size is clear.** The HUD shows the army cap for the level (the caps of its kinds added up, 5 in chapter 1), and a gear whose kind is at its cap shows `MAX n`.
+- **Opponents have the same limit.** Each kind of enemy is capped like each kind of fighter (bosses and champions are exempt).
+- **Re-tuned difficulty** for easy, medium and hard, since the caps and ticks change the balance.
+
 ## 0.2.0
 
 Book 1 grows and gets harder. Changes since 0.1.0, grouped by pull request.

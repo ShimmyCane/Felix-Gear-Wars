@@ -15,7 +15,8 @@
     this.t = 0; this.acc = 0; this.speed = 1; this.nid = 1; this.events = [];
     this.cols = cfg.board.cols; this.rows = cfg.board.rows;
     this.heart = { c: cfg.board.heart.c, r: cfg.board.heart.r };
-    this.heartA = -0.35;                       // total angle turned (radians); gears fill smoothly as it turns
+    this.heartA = -0.35;                       // the angle shown (radians): the heart snaps a quarter turn on each tick and the gears fill only then
+    this.ticks = 0; this.tickAcc = 0;
     this.world = cfg.world || F.WORLD; this.ebx = this.world - 160;   // width of the battlefield and the enemy fortress
     this.heartPeriod = o.heartPeriod || F.HEART_PERIOD / (o.heartSpeed || 1);
     this.holes = {}; cfg.board.holes.forEach(function (h) { this.holes[h[0] + ',' + h[1]] = true; }, this);
@@ -25,6 +26,8 @@
     this.waveIdx = -1; this.queue = []; this.waveTimer = Infinity; this.waveCount = Infinity;
     this.leaks = 0; this.kills = 0; this.earned = 0; this.spent = 0; this.undo = [];
     this.es = F.enemyScale(cfg.idx);
+    // With each kind of enemy capped, a bigger press cannot add more of them, so it also makes them tougher: health and attack grow with the square root of the press (above 1).
+    this.es.foe = Math.sqrt(Math.max(1, F.modePress(cfg.mode, cfg.idx)));
     var qk = cfg.quick ? 0.6 : 1;                // Quick game squeezes the whole hill
     var pace = F.modePace(cfg.mode);            // medium and hard: more time between waves, a longer hill
     this.pace = pace;
@@ -37,6 +40,8 @@
     this.specialty = o.specialty || null;      // the culture's starred fighter (+25%); the screen sets it
     this.pool = cfg.pool.concat(cfg.specials || []);
     F.multTiers(cfg.free ? 0 : cfg.ch).forEach(function (v) { this.pool.push('mult@' + v); }, this);
+    this.maxArmy = cfg.free ? (o.armyMax || F.FREE_ARMY) : F.MAX_UNITS;                                  // free-for-all: 25 by default, up to 50 in the settings
+    this.maxEnemy = cfg.free ? Math.ceil(this.maxArmy * F.freeFoe(cfg.mode)) : F.MAX_UNITS;             // the enemy army: 1x, 2x or 3x yours by mode
     this.tray = [null, null, null];
     this.sideGain = [{}, {}, {}, {}];
     this.rollTray();
@@ -222,7 +227,21 @@
   };
 
   // ---- the tray and the shop ---------------------------------------------------------------
+  // The shop gives each gear at a level that suits your money: the highest level (up to TRAY_MAXLEVEL) whose price is at most a tenth of it.
+  P.trayLevel = function (type) {
+    var n = 0; for (var i = 0; i < this.gears.length; i++) if (!this.gears[i].locked) n++;
+    var mul = 1 + (this.cfg.creep || 0) * n, lv = 1;
+    for (var L = 2; L <= F.TRAY_MAXLEVEL; L++) if (F.gearValue(type, L) * mul <= this.coins * F.TRAY_SHARE) lv = L;
+    return lv;
+  };
   P.rollOne = function () {
+    var t = this.rollPick(), p = F.trayParts(t);
+    if (p.type === 'mult' || p.type === 'boss' || p.level > 1) return t;
+    var lv = this.trayLevel(p.type);
+    return lv > 1 ? p.type + '@' + lv : t;
+  };
+  P.armyCap = function () { return Math.min(this.maxArmy, F.armyCap(this.cfg.pool)); };
+  P.rollPick = function () {
     var pool = this.pool, w = pool.map(function (t) { return F.trayParts(t).type === 'mult' ? 0.7 : t === 'boss' ? 0.35 : F.UNITS[t] ? 1 : 0.8; });
     var tot = w.reduce(function (a, b) { return a + b; }, 0), x = this.rnd() * tot;
     for (var i = 0; i < pool.length; i++) { x -= w[i]; if (x <= 0) return pool[i]; }
@@ -231,7 +250,7 @@
   P.rollTray = function () {
     for (var i = 0; i < 3; i++) this.tray[i] = this.rollOne();
     // always offer at least one fighter so a tray is never all specials
-    if (!this.tray.some(function (t) { return F.UNITS[t]; })) this.tray[0] = this.cfg.pool[this.cfg.pool.length - 1];
+    if (!this.tray.some(function (t) { return F.UNITS[F.trayParts(t).type]; })) this.tray[0] = this.cfg.pool[this.cfg.pool.length - 1];
   };
   P.refreshCost = function () { var n = 0; for (var i = 0; i < this.gears.length; i++) if (!this.gears[i].locked) n++; return F.refreshCost(n); };
   P.refreshTray = function () {
@@ -317,7 +336,7 @@
   // peak, keep it exciting but not unfair, and ease off as the level fades). Free-for-all just keeps growing.
   P.makeWave = function (k) {
     var cfg = this.cfg, t = Math.max(0, this.t - this.startT), tm = t / 60, c, ratio;
-    if (cfg.free) { c = Math.min(1, 0.4 + 0.08 * k); ratio = (0.6 + 0.09 * k) * this.fun.ch * F.modePress(cfg.mode, cfg.idx); }
+    if (cfg.free) { c = Math.min(1, 0.4 + 0.08 * k); ratio = F.freeFoe(cfg.mode) * Math.min(1, 0.25 + 0.75 * k / 25) * this.fun.ch; }   // climbs over 25 waves to 1x, 2x or 3x the value of your army
     else { c = F.funCurve(tm, this.fun.peak / 60, this.fun.fade / 60); ratio = (F.TUNE.rLow + (F.TUNE.rPeak - F.TUNE.rLow) * c) * (1 + F.TUNE.rIdx * Math.min(1, cfg.idx / 23)) * (cfg.len || 1) * this.fun.ch * F.modePress(cfg.mode, cfg.idx); }
     var es = this.es, scale = Math.sqrt(es.hp * es.atk), pool = cfg.pool, i;
     var E = this.playerPower(Math.min(30, this.gap)) * ratio;
@@ -330,7 +349,7 @@
     var list = [], got = 0, guard = 0;
     var lv = F.enemyLevel(c, cfg.idx);           // the Horde trains: its gears get stronger along the fun curve
     // a wave holds up to 26 fighters at press 1; harder modes allow bigger waves (the cap grows with the square root of the press)
-    var cap = Math.round(F.WAVE_BASE * Math.max(1, Math.sqrt(F.modePress(cfg.mode, cfg.idx))));
+    var cap = cfg.free ? this.maxEnemy : Math.round(F.WAVE_BASE * Math.max(1, Math.sqrt(F.modePress(cfg.mode, cfg.idx))));
     while (got < E && list.length < cap && guard++ < 160) {
       var tp = F.weightedPick(this.rnd, types); list.push({ type: tp, boss: false, level: lv }); got += F.unitPower(tp) * scale * F.SM[lv - 1];
     }
@@ -351,7 +370,8 @@
   // ---- units -------------------------------------------------------------------------------
   P.makeUnit = function (side, type, level, x, boss) {
     var d = F.UNITS[type], sm = F.SM[level - 1], es = side === 'enemy' ? this.es : { hp: 1, atk: 1, def: 1 };
-    var hp = d.hp * sm * es.hp, atk = d.atk * sm * es.atk, def = d.def * (1 + 0.4 * (level - 1)) * es.def, spd = d.speed, sc = level >= F.BIG_LEVEL ? 2.8 : 1 + (level - 1) * 0.1;
+    var foe = side === 'enemy' ? (es.foe || 1) : 1;
+    var hp = d.hp * sm * es.hp * foe, atk = d.atk * sm * es.atk * foe, def = d.def * (1 + 0.4 * (level - 1)) * es.def, spd = d.speed, sc = level >= F.BIG_LEVEL ? 2.8 : 1 + (level - 1) * 0.1;
     if (d.champ) sc = d.scale * (1 + (level - 1) * 0.08);
     var special = side === 'ally' && this.specialty === type;
     if (special) { hp *= F.SPECIALTY_BONUS; atk *= F.SPECIALTY_BONUS; }
@@ -472,6 +492,13 @@
     return false;
   };
   // ---- the blob: splits into ten bits, five kills reform it; only one blob at a time ----------------------------
+  // The crown gear picks the next champion from all of them, most often the most valuable (by its power); never a second blob.
+  P.pickChampion = function () {
+    var blob = this.blobAlive(), list = F.CHAMP_ORDER.filter(function (k) { return !(k === 'blob' && blob); });
+    var w = list.map(function (k) { return F.unitPower(k); }), tot = w.reduce(function (a, b) { return a + b; }, 0), x = this.rnd() * tot;
+    for (var i = 0; i < list.length; i++) { x -= w[i]; if (x <= 0) return list[i]; }
+    return list[list.length - 1];
+  };
   P.blobAlive = function () {
     for (var i = 0; i < this.units.length; i++) { var o = this.units[i]; if (o.side === 'ally' && (o.type === 'blob' || o.type === 'blobling') && !o.dead && o.state !== 'dying') return true; }
     return false;
@@ -717,7 +744,12 @@
   // A gear fed by a big multiplier needs more ticks for each unit: sqrt(gain / 2) times as many above 2x, so 8x is twice 2x, not four times.
   P.gearNeed = function (g) {
     var base = F.ticksNeeded(g.type, g.level);
-    if (g.type === 'boss') return base / F.modeRoyal(this.cfg.mode);     // the crown gear comes round faster on harder modes
+    if (g.type === 'boss') {
+      // the crown gear comes round faster on harder modes, and 5 turns slower for each champion beyond five, up to 100 turns
+      var champs = 0; for (var ci = 0; ci < this.units.length; ci++) { var cu = this.units[ci]; if (cu.side === 'ally' && cu.champ && !cu.dead && cu.state !== 'dying') champs++; }
+      var revs = Math.min(100, F.BOSS_REVS + 5 * Math.max(0, champs - 5));
+      return base * (revs / F.BOSS_REVS) / F.modeRoyal(this.cfg.mode);
+    }
     return g.gmax > 2 ? base * Math.sqrt(g.gmax / 2) : base;
   };
   P.produce = function (g) {
@@ -728,15 +760,15 @@
     var guard = 0;
     while (g.charge >= need && guard++ < 1) {
       if (F.UNITS[g.type]) {
-        if (allies >= F.MAX_UNITS || this.typeCount(g.type, 'ally') >= F.UNIT_CAP(g.type)) { g.charge = need; return; }
+        if (allies >= this.maxArmy || this.typeCount(g.type, 'ally') >= F.UNIT_CAP(g.type)) { g.charge = need; return; }
         var x = this.dropX(g.c) + (this.rnd() - 0.5) * 24;
         var u = this.makeUnit('ally', g.type, g.level, x, false);
         u.gc = g.c; u.gr = g.r; allies++;
         this.emit({ k: 'pop', gear: g.id, c: g.c, r: g.r, unit: u.id, type: g.type, level: g.level });
         g.charge -= need;
       } else if (g.type === 'boss') {
-        if (allies >= F.MAX_UNITS) { g.charge = need; return; }
-        var ct = F.CHAMP_ORDER[Math.floor(this.rnd() * F.CHAMP_ORDER.length)]; if (ct === 'blob' && this.blobAlive()) ct = 'dragon';
+        if (allies >= this.maxArmy) { g.charge = need; return; }
+        var ct = this.pickChampion();
         var bu = this.makeUnit('ally', ct, g.level, this.dropX(g.c), false);
         allies++;
         this.emit({ k: 'pop', gear: g.id, c: g.c, r: g.r, unit: bu.id, type: ct, level: g.level, champ: true });
@@ -781,14 +813,16 @@
     var i;
     this.t += dt;
     // the heart turns smoothly (even before the first wave, so Felix sees it work) and the gears fill as it turns
-    var dA = dt * 2 * Math.PI / this.heartPeriod; this.heartA += dA;
-    this.fillGears(dA / (Math.PI / 2));
+    // the heart ticks once per quarter turn: the gears get their ticks then, not continuously
+    this.tickAcc += dt * 4 / this.heartPeriod;
+    while (this.tickAcc >= 1) { this.tickAcc -= 1; this.ticks++; this.fillGears(1); this.emit({ k: 'tick' }); }
+    this.heartA += (this.ticks * Math.PI / 2 - 0.35 - this.heartA) * Math.min(1, dt * 16);
     if (this.status === 'running') {
       this.waveTimer -= dt;
       if (this.waveTimer <= 0 && this.waveIdx + 1 < this.waveCount) this.launchWave();
       for (i = this.queue.length - 1; i >= 0; i--) {
         var q = this.queue[i];
-        if (this.t >= q.at && this.enemiesAlive() < F.MAX_UNITS) {
+        if (this.t >= q.at && this.enemiesAlive() < this.maxEnemy && (q.boss || this.typeCount(q.type, 'enemy') < F.UNIT_CAP(q.type))) {
           var e = this.makeUnit('enemy', q.type, q.level || 1, this.ebx + 20, q.boss);
           e.state = 'go'; e.anim = 'walk'; this.queue.splice(i, 1);
           this.emit({ k: 'enemy', unit: e.id, boss: q.boss });

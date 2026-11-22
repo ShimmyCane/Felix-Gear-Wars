@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var F = globalThis.FGW = globalThis.FGW || {};
-  F.version = '0.2.0';
+  F.version = '0.4.0';
 
   // ---- the world --------------------------------------------------------------------------
   F.VIEW_W = 1280;             // logical width of the screen
@@ -31,7 +31,7 @@
   // Tray multipliers: 1X from chapter 3, 2X from chapter 4, 4X from chapter 6 (free-for-all has them all).
   F.multTiers = function (ch) { if (!ch) return [1, 2, 3]; var t = []; if (ch >= 3) t.push(1); if (ch >= 4) t.push(2); if (ch >= 6) t.push(3); return t; };
   // A tray entry is a type, or 'mult@N' for a multiplier of value N.
-  F.trayParts = function (t) { var m = /^mult@(\d)$/.exec(t || ''); return m ? { type: 'mult', level: +m[1] } : { type: t, level: 1 }; };
+  F.trayParts = function (t) { var m = /^([a-z]+)@(\d)$/.exec(t || ''); return m ? { type: m[1], level: +m[2] } : { type: t, level: 1 }; };
   // Free-for-all refresh: 5 coins, plus 5 for every five gears on the pegboard.
   F.refreshCost = function (gears) { return 5 + 5 * Math.floor(gears / 5); };
   // Opponents train: the level of an enemy gear follows the fun curve (c, 0 to 1). Level 2 from the back half of the hill (c over 0.6); level 3 only at the top of it on the later levels (idx 12 and up).
@@ -45,11 +45,11 @@
   F.modePace = function (mode) { return F.MODES[F.modeOf(mode)].pace; };
   var ONES = []; for (var oi = 0; oi < 24; oi++) ONES.push(1);
   // tuned:begin (written by tools/balance_tune.js apply; re-tune after changing the rules)
-  F.MODE_PRESS = { easy: 1, medium: 1.593, hard: 7.914 };
+  F.MODE_PRESS = { easy: 0.517, medium: 1.737, hard: 2.511 };
   F.LEVEL_PRESS = {
-    easy: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-    medium: [1.331, 1.1, 0.778, 0.92, 0.846, 1.21, 0.92, 0.846, 1.1, 1.21, 1.331, 1.21, 1.331, 0.92, 1, 0.92, 1.331, 1, 1.331, 1.331, 1.21, 0.92, 1.331, 1.331, 1.331, 1.331, 1.21, 1.331, 1.331, 1.331],
-    hard: [0.778, 0.778, 0.778, 0.778, 0.778, 0.778, 0.846, 0.778, 0.92, 0.778, 0.778, 0.846, 1.331, 1.21, 1.1, 0.778, 0.931, 1.012, 1.21, 1.1, 1.21, 1.1, 0.778, 1.1, 1.331, 1.331, 1.21, 1.331, 1.331, 1.331]
+    easy: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.92, 1, 0.92, 1, 0.716, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    medium: [1.6, 1.6, 1.379, 1.036, 1.239, 1.464, 0.778, 0.659, 0.931, 1.126, 1.6, 1.6, 1.225, 0.846, 0.716, 0.659, 1.331, 0.659, 1.464, 1.6, 1.331, 0.659, 1.6, 1.6, 1.6, 1.6, 1.6, 1.6, 1.6, 1.6],
+    hard: [0.606, 0.6, 0.6, 0.614, 0.6, 0.659, 0.659, 0.6, 0.716, 0.66, 0.867, 0.659, 1.24, 0.942, 0.788, 0.6, 0.667, 0.868, 1.472, 1.464, 1.347, 0.942, 0.6, 1.113, 1.6, 1.6, 1.6, 1.037, 1.6, 1.037]
   };
   // tuned:end
   // Removable pegs: tap a blocked peg to see its price, tap again to pay. Each one cleared costs more than the last.
@@ -106,6 +106,13 @@
     monk:     { name: 'Bless', trigger: 160, radius: 240, heal: 0.4 },                // allies nearby heal 40% of their health
     shield:   { name: 'Bulwark', trigger: 160, dur: 4 },                              // its ring is twice as strong for 4 s
   };
+  // The most fighters a level's army can reach: the caps of its kinds added up, never more than the overall limit.
+  F.armyCap = function (pool) { var t = 0; pool.forEach(function (p) { t += F.UNIT_CAP(p); }); return Math.min(F.MAX_UNITS, t); };
+  // The shop offers a gear at the highest level whose price is at most this share of the money you have (1/10; the level below is about 1/25 to 1/10), up to this level.
+  F.TRAY_SHARE = 0.1; F.TRAY_MAXLEVEL = 4;
+  // Free-for-all: the wave's value is this many times the value of your army at full strength (the waves climb to it over time).
+  F.freeFoe = function (mode) { return { easy: 1, medium: 2, hard: 3 }[F.modeOf(mode)]; };
+  F.FREE_ARMY = 25;            // the free-for-all army limit (a slider in the settings goes up to 50)
   F.UNIT_CAP = function (type) { var i = F.UNIT_ORDER.indexOf(type); return i < 0 ? F.MAX_UNITS : 5 * (i + 1); };
 
   // ---- champions: what a boss gear makes. Each is a different awesome unit with its own power --------------------
