@@ -534,9 +534,10 @@
       }
     });
     var ur = b2UpgradeRect();
-    if (b.level < 3) {
+    var upRes = B.kind === 'res', upNext = upRes ? F.resUpgradeCost(b.level) : { gold: 60 * b.level, wood: 20 * b.level };
+    if (upRes || b.level < 3) {
       panel(c, ur.x, ur.y, ur.w, ur.h, Art.C(T.btn), 14);
-      txt(c, 'Upgrade to level ' + (b.level + 1) + ': ' + 60 * b.level + ' gold, ' + 20 * b.level + ' wood', ur.x + ur.w / 2, ur.y + 31, 15, T.text, 'center', '800');
+      txt(c, 'Upgrade to level ' + (b.level + 1) + ': ' + upNext.gold + ' gold, ' + upNext.wood + ' wood', ur.x + ur.w / 2, ur.y + 31, 15, T.text, 'center', '800');
     } else txt(c, 'Fully upgraded', ur.x + ur.w / 2, ur.y + 31, 15, T.text, 'center', '800');
   }
   // ---- book 3 battle, seen from above: three lanes, units as tokens, flank arrows on the selected one -----------------

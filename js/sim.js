@@ -667,8 +667,10 @@
   };
   P.b2Upgrade = function (bid) {
     var b = this.buildings.filter(function (x) { return x.id === bid; })[0];
-    if (!b || b.level >= 3) return 'none';
-    var gold = 60 * b.level, wood = 20 * b.level;
+    var res = b ? F.B2_BUILDINGS[b.type].kind === 'res' : false;
+    if (!b || (!res && b.level >= 3)) return 'none';     // unit buildings stop at level 3; resource buildings keep going
+    var cost = res ? F.resUpgradeCost(b.level) : { gold: 60 * b.level, wood: 20 * b.level };
+    var gold = cost.gold, wood = cost.wood;
     if (this.coins < gold || this.res.wood < wood) return 'poor';
     this.coins -= gold; this.res.wood -= wood; this.spent += gold; b.level++;
     return 'ok';
@@ -678,7 +680,7 @@
     for (i = 0; i < this.buildings.length; i++) {
       b = this.buildings[i]; B = F.B2_BUILDINGS[b.type];
       if (B.kind === 'res') {
-        var made = B.rate * (1 + 0.5 * (b.level - 1)) * dt;
+        var made = B.rate * F.resGrowth(b.level) * dt;
         if (B.makes === 'gold') this.coins += made; else this.res[B.makes] += made;
         this.earned += B.makes === 'gold' ? made : 0;
       } else if (b.queue.length) {

@@ -9,6 +9,8 @@ Newest first. The version number is `F.version` in `js/data.js`; the balance num
 - **Hero.** Tough (1,200 hit points) and it guards the castle until you give an order. Attack sends every ally forward. Defend brings them back to the castle. Lane up and Lane down move the hero a lane. Allies in the hero's lane and within 360 fight at 1.2 times attack and defence.
 - **Book 3 battle uses book 1's side view.** The three lanes show as dashed lines, and units stand at their lane's depth. Tap targets follow the drawing.
 - **Book 2 and 3 unit buildings show book 1's gear art** on their plots.
+- **Resource buildings upgrade without a cap.** Each level multiplies output by 1.4 (level 5 gives 3.8 times, level 10 gives 21 times). The upgrade price grows by 1.25 per level, so the economy keeps up with harder enemies. Unit buildings still stop at level 3.
+- Book 2 and 3 press numbers re-tuned for the upgrade economy.
 
 ## 0.11.0
 

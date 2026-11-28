@@ -37,11 +37,11 @@ function bot2(sim, rnd) {
     for (var i = 0; i < options.length; i++) { if (b.queue.length >= 2) break; if (!sim.trainShort(options[i])) { sim.b2Train(b.id, options[i]); } }
   });
   // upgrades: resource buildings first (a level doubles their output), lowest level first, keeping a small reserve of gold
-  var up = sim.buildings.filter(function (b) { return b.level < 3; });
+  var up = sim.buildings.filter(function (b) { return b.level < 3 || F.B2_BUILDINGS[b.type].kind === 'res'; });
   up.sort(function (x, y) { var rx = F.B2_BUILDINGS[x.type].kind === 'res' ? 0 : 1, ry = F.B2_BUILDINGS[y.type].kind === 'res' ? 0 : 1; return rx - ry || x.level - y.level; });
   for (var ui = 0; ui < up.length; ui++) {
-    var lvl = up[ui].level;
-    if (sim.coins >= 60 * lvl + 40 && sim.res.wood >= 20 * lvl + 10) { sim.b2Upgrade(up[ui].id); break; }
+    var lvl = up[ui].level, uc = F.B2_BUILDINGS[up[ui].type].kind === 'res' ? F.resUpgradeCost(lvl) : { gold: 60 * lvl, wood: 20 * lvl };
+    if (sim.coins >= uc.gold + 40 && sim.res.wood >= uc.wood + 10) { sim.b2Upgrade(up[ui].id); break; }
   }
 }
 
