@@ -27,7 +27,8 @@ function bot2(sim, rnd) {
     if (B.kind !== 'unit') return;
     var unlocked = F.unlockedFor(sim.cfg);
     var options = B.units.filter(function (u) { return unlocked.indexOf(u) >= 0; }).reverse();
-    for (var i = 0; i < options.length; i++) { if (b.queue.length >= 2) break; if (sim.res.food >= F.UNITS[options[i]].cost) { sim.b2Train(b.id, options[i]); } }
+    // train the newest unit whose four costs (food, wood, gold, runes) are all there
+    for (var i = 0; i < options.length; i++) { if (b.queue.length >= 2) break; if (!sim.trainShort(options[i])) { sim.b2Train(b.id, options[i]); } }
   });
   // upgrade the farms and barracks when there is spare gold
   if (sim.coins > 350) { var u = sim.buildings.filter(function (b) { return b.level < 2 && (b.type === 'farm' || b.type === 'barracks'); })[0]; if (u) sim.b2Upgrade(u.id); }
@@ -42,6 +43,21 @@ function playLevel(cfg, seed) {
 module.exports = { bot2: bot2, playLevel: playLevel };
 
 if (require.main === module) {
+  // node tools/bot2.js levels [runs] [mode] [book]   table for book 2 (default) or 3
+  // node tools/bot2.js json <book> <runs> <mode>     one JSON object per level, for tools/balance_report.py
+  var cmd = process.argv[2] || 'levels';
+  if (cmd === 'json') {
+    var jb = +(process.argv[3] || 2), jruns = +(process.argv[4] || 4), jmode = process.argv[5] || 'medium', rows = [];
+    var chapters = jb === 3 ? F.B3_CHAPTERS.length : F.B2_CHAPTERS.length, per = jb === 3 ? F.B3_LV : F.B2_LV;
+    var make = function (ch, lv) { return jb === 3 ? F.b3Config(ch, lv, { mode: jmode }) : F.b2Config(ch, lv, { mode: jmode }); };
+    for (var jc = 1; jc <= chapters; jc++) for (var jl = 1; jl <= per; jl++) {
+      var wins = 0, leaks = 0, secs = 0, blds = 0, cfg0 = make(jc, jl);
+      for (var jk = 0; jk < jruns; jk++) { var jr = playLevel(make(jc, jl), 100 + jk); if (jr.status === 'won') wins++; leaks += jr.leaks; secs += jr.time; blds += jr.buildings; }
+      rows.push({ book: jb, ch: jc, lv: jl, boss: jl === per, mode: jmode, runs: jruns, win: wins / jruns, leaks: leaks / jruns, lives: cfg0.lives, secs: secs / jruns, buildings: blds / jruns });
+    }
+    console.log(JSON.stringify(rows));
+    process.exit(0);
+  }
   var runs = +(process.argv[3] || 2), mode = process.argv[4] || 'medium';
   console.log('Book 2 bot, ' + runs + ' runs per level, ' + mode + ' mode');
   console.log('level  win%  leaks/lives  secs  buildings');

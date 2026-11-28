@@ -500,12 +500,22 @@
     txt(c, B.name + '  ·  level ' + b.level, R.x + 20, R.y + 34, 22, T.text, 'left', '900');
     txt(c, 'x', R.x + R.w - 28, R.y + 30, 22, T.text, 'center', '900');
     var q = sim.b2Countdown(b.id);
-    txt(c, q.length ? 'Training: ' + q.map(function (x) { return F.UNITS[x.type].name + ' ' + Math.ceil(x.left) + 's'; }).join('   ') : 'Nothing in training', R.x + 20, R.y + 66, 15, T.text, 'left', '700');
+    txt(c, (q.length ? 'Training ' + q.length + ' of ' + F.B2_QUEUE + ': ' + q.map(function (x) { return F.UNITS[x.type].name + ' ' + Math.ceil(x.left) + 's'; }).slice(0, 3).join('   ') : 'Nothing in training') + (q.length > 3 ? '   …' : ''), R.x + 20, R.y + 66, 15, T.text, 'left', '700');
     if (B.units) B.units.forEach(function (u, k) {
       var r = b2TrainRect(k), locked = F.b2Unlocked(sim.cfg.ch).indexOf(u) < 0;
       panel(c, r.x, r.y, r.w, r.h, Art.C(locked ? T.panel2 : T.btn), 14);
-      txt(c, F.UNITS[u].name, r.x + r.w / 2, r.y + 24, 16, T.text, 'center', '800');
-      txt(c, locked ? 'not yet' : 'food ' + F.UNITS[u].cost, r.x + r.w / 2, r.y + 46, 14, T.text, 'center', '700');
+      txt(c, F.UNITS[u].name, r.x + r.w / 2, r.y + 20, 16, T.text, 'center', '800');
+      if (locked) txt(c, 'not yet', r.x + r.w / 2, r.y + 44, 14, T.text, 'center', '700');
+      else {
+        // four costs, each in its own colour: red when that one is short (food, wood, gold, runes; a zero cost is left out)
+        var tc = F.trainCost(u), short = sim.trainShort(u), cs = [['food', tc.food], ['wood', tc.wood], ['gold', tc.gold], ['runes', tc.runes]].filter(function (p) { return p[1] > 0; });
+        cs.forEach(function (p, k) {
+          var row = k < 2 ? 0 : 1, inRow = row === 0 ? Math.min(2, cs.length) : cs.length - 2, col = row === 0 ? k : k - 2;
+          var x = r.x + r.w / 2 + (col - (inRow - 1) / 2) * 70, y = r.y + (row ? 52 : 37);
+          txt(c, p[0] + ' ' + p[1], x, y, 13, p[0] === short ? Art.C('#c0392b') : T.text, 'center', '700');
+        });
+        txt(c, F.TRAIN[u][4] + ' s', r.x + r.w - 10, r.y + 12, 11, T.text, 'right', '700');
+      }
     });
     var ur = b2UpgradeRect();
     if (b.level < 3) {
@@ -621,7 +631,7 @@
   }
   function trainMsg(r, u) {
     var name = F.UNITS[u].name;
-    return r === 'ok' ? name + ' is in training' : r === 'food' ? 'Not enough food for a ' + name : r === 'full' ? 'The queue is full (three)' : r === 'locked' ? name + ' is not unlocked yet' : 'Nothing to train';
+    return r === 'ok' ? name + ' is in training' : (r === 'food' || r === 'wood' || r === 'gold' || r === 'runes') ? 'Not enough ' + r + ' for a ' + name : r === 'full' ? 'The queue is full (' + F.B2_QUEUE + ')' : r === 'locked' ? name + ' is not unlocked yet' : 'Nothing to train';
   }
   function upgradeMsg(r) { return r === 'ok' ? 'Upgraded' : r === 'poor' ? 'Not enough gold or wood' : 'Fully upgraded'; }
   function placeMsg(r) { return r === 'poor' ? 'Not enough gold, wood or runes' : r === 'blocked' ? 'That plot is taken' : 'Nothing to place'; }

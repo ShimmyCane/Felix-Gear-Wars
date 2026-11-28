@@ -2,6 +2,14 @@
 
 Newest first. The version number is `F.version` in `js/data.js`; the balance numbers are in `research/balance.md`.
 
+## 0.11.0
+
+- **Units cost four things in books 2 and 3.** Each unit takes food, wood, gold and runes to train (the table is `F.TRAIN` in `js/data.js`). Ranged units lean on wood, magic units on runes, the rest on gold. The training popup shows every cost, and a short one shows in red.
+- **Six units can queue in a building** (was three). The popup shows how many are waiting.
+- **Fixed: some units took 55 seconds to train.** Units added after book 1 were missing from the tier list, so they fell back to the slowest time. Every unit now has its own time.
+- **Headless balance report.** `python3 tools/balance_report.py` runs the book bot on every level of books 2 and 3 and prints a line per chapter (win rate, boss win rate, leaks, and a flag when a chapter is outside the band). `--book`, `--mode`, `--runs` and `--chapters` choose what runs.
+- Press numbers re-tuned for the new costs (`tools/balance_tune.js`).
+
 ## 0.10.0
 
 - **Books 2 and 3 have five levels per chapter.** The boss is on level 5. Beating a level opens the next one, as before.
