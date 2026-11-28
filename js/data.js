@@ -513,7 +513,7 @@
     o = o || {}; var idx = (ch - 1) * F.B3_LV + (lv - 1), C = F.B3_CHAPTERS[ch - 1];
     var pool = F.b3Unlocked(ch), gold = 180 + 15 * idx, unit = pool[pool.length - 1] || 'spearman';
     return {
-      id: 'b3c' + ch + 'l' + lv, book: 3, lanes: 3, ch: ch, lv: lv, idx: idx, seed: 7000 + idx * 77, free: false, world: 2560,
+      id: 'b3c' + ch + 'l' + lv, book: 3, lanes: 3, ch: ch, lv: lv, idx: idx, title: C.title, seed: 7000 + idx * 77, free: false, world: 2560,
       board: { cols: F.B3_COLS, rows: 3, heart: { c: 0, r: 0 }, holes: [], dormant: [] },
       lives: 20 + 5 * ch, coins: gold, creep: 0, gearTarget: 0, lastWave: 5 + idx, dynamic: true, len: 1, waves: [],
       bossName: lv === F.B3_LV ? 'The Lane Captain ' + ch : null, bossType: lv === F.B3_LV ? unit : null,
@@ -539,14 +539,14 @@
   // Endless play for books 2 and 3: every unit of the book, the waves keep growing, the fortress cannot fall. Best wave is kept per book.
   F.b2FreeConfig = function (o) {
     o = o || {}; var c = F.b2Config(15, F.B2_LV, o), pool = F.b2Unlocked(15);
-    c.id = 'b2free'; c.free = true; c.ch = 15; c.lv = 0; c.idx = 15 * F.B2_LV - 1; c.bossName = null; c.bossType = null; c.bossEvery = 5;
+    c.id = 'b2free'; c.free = true; c.title = 'Endless'; c.ch = 15; c.lv = 0; c.idx = 15 * F.B2_LV - 1; c.bossName = null; c.bossType = null; c.bossEvery = 5;
     c.pool = pool; c.lives = 60; c.coins = 400; c.baseHp = 99999; c.res = { food: 120, wood: 80, runes: 40 }; c.plots = F.B2_PLOTS; c.terrain = [];
     c.story = { cap: 'Book 2: endless', short: 'Every Gear Works unit, every building. The Horde never stops.', story: 'No chapter now. Build the Works, train every unit and hold back the Horde for as long as you can.' };
     return c;
   };
   F.b3FreeConfig = function (o) {
     o = o || {}; var c = F.b3Config(10, F.B3_LV, o), pool = F.b3Unlocked(10);
-    c.id = 'b3free'; c.free = true; c.ch = 10; c.lv = 0; c.idx = 10 * F.B3_LV - 1; c.bossName = null; c.bossType = null; c.bossEvery = 5;
+    c.id = 'b3free'; c.free = true; c.title = 'Endless'; c.ch = 10; c.lv = 0; c.idx = 10 * F.B3_LV - 1; c.bossName = null; c.bossType = null; c.bossEvery = 5;
     c.pool = pool; c.lives = 60; c.coins = 400; c.baseHp = 99999; c.res = { food: 120, wood: 80, runes: 40 }; c.plots = F.B3_PLOTS; c.terrain = [];
     c.story = { cap: 'Book 3: endless', short: 'Three lanes, every unit, every flank. The Horde never stops.', story: 'The lanes run on forever. Flank, freeze and build, and hold the Horde as long as you can.' };
     return c;
@@ -556,7 +556,7 @@
     o = o || {}; var idx = (ch - 1) * F.B2_LV + (lv - 1), C = F.B2_CHAPTERS[ch - 1];
     var pool = F.b2Unlocked(ch), gold = 150 + 15 * idx;
     return {
-      id: 'b2c' + ch + 'l' + lv, book: 2, ch: ch, lv: lv, idx: idx, seed: 5000 + idx * 77, free: false, world: 2560,
+      id: 'b2c' + ch + 'l' + lv, book: 2, ch: ch, lv: lv, idx: idx, title: C.title, seed: 5000 + idx * 77, free: false, world: 2560,
       board: { cols: F.B2_COLS, rows: F.B2_ROWS, heart: { c: 0, r: 0 }, holes: [], dormant: [] },
       lives: 20 + 5 * ch, coins: gold, creep: 0, gearTarget: 0, lastWave: 5 + idx, dynamic: true, len: 1, waves: [],
       bossName: lv === F.B2_LV ? F.B2_BOSS[ch] || null : null, bossType: lv === F.B2_LV ? C.unit : null,

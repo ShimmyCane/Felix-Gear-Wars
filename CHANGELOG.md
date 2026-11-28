@@ -8,6 +8,8 @@ Newest first. The version number is `F.version` in `js/data.js`; the balance num
 - **More plots.** Book 2 has twelve plots (a 6 by 2 grid): enough for the five unit buildings, the four resource buildings and three spare. Book 3 has fifteen (five per lane): enough for its eight unit buildings, four resource buildings and three spare.
 - **Kills pay more at higher levels** (books 2 and 3). A level-2 kill pays 1.5 times, level 6 pays 3.5 times.
 - **Base gold trickle** (books 2 and 3). One coin every eight seconds, even between waves. A new slider in the settings (log scale, half a second to one minute) sets the time, for testing.
+- **Five level buttons fit on a phone.** The fifth (boss) button of each book 2 and 3 chapter ran off the card.
+- **Notes name the book 2 and 3 chapters** (they read "undefined" before).
 - Book 2 and 3 press numbers re-tuned for five levels (`tools/balance_tune.js`, `BOOK=2` or `BOOK=3`).
 
 ## 0.9.1
