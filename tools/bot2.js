@@ -46,7 +46,7 @@ if (require.main === module) {
   console.log('Book 2 bot, ' + runs + ' runs per level, ' + mode + ' mode');
   console.log('level  win%  leaks/lives  secs  buildings');
   var total = 0, wins = 0;
-  for (var ch = 1; ch <= 15; ch++) for (var lv = 1; lv <= 3; lv++) {
+  for (var ch = 1; ch <= F.B2_CHAPTERS.length; ch++) for (var lv = 1; lv <= F.B2_LV; lv++) {
     var cfg0 = F.b2Config(ch, lv, { mode: mode }), w = 0, leaks = 0, time = 0, bl = 0;
     for (var k = 0; k < runs; k++) { var r = playLevel(F.b2Config(ch, lv, { mode: mode }), 100 + k); if (r.status === 'won') w++; leaks += r.leaks; time += r.time; bl += r.buildings; }
     total += runs; wins += w;

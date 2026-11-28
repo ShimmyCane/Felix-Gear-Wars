@@ -44,7 +44,9 @@
     this.spikes = []; this.hasBuildings = this.book === 2 || this.book === 3; this.lanes = cfg.lanes || 1;   // book 3: three lanes seen from above
     this.res = Object.assign({ food: 0, wood: 0, runes: 0 }, cfg.res || {});
     this.buildings = []; this.plotUse = {}; this.plotX = [];
-    for (var pi = 0; pi < (cfg.plots || 0); pi++) this.plotX.push(180 + pi * 100);
+    // plots sit in a grid of this.cols columns; the x of a plot depends on its column, so each column has a spot along the front (180 to 980)
+    this.trickleSec = o.trickleSec || F.TRICKLE_SEC; this.trickleAcc = 0;   // book 2 and 3: the base gold trickle (one coin every trickleSec)
+    for (var pi = 0; pi < (cfg.plots || 0); pi++) this.plotX.push(180 + (pi % this.cols) * 800 / Math.max(1, this.cols - 1));
     if (!this.book) F.multTiers(cfg.free ? 0 : cfg.ch).forEach(function (v) { this.pool.push('mult@' + v); }, this);
     this.maxChamps = o.champMax || F.MAX_CHAMPIONS;                                                       // the player's champions on the map at once
     this.maxArmy = cfg.free ? (o.armyMax || F.FREE_ARMY) : F.MAX_UNITS;                                  // free-for-all: 25 by default, up to 50 in the settings
@@ -452,6 +454,7 @@
     }
     if (t.side === 'enemy') {
       var b = F.bounty(t.type, t.boss);
+      if (this.hasBuildings) b = Math.round(b * F.levelBounty(t.level));     // books 2 and 3: higher-level units pay more
       this.coins += b; this.earned += b; this.kills++;
       this.emit({ k: 'coin', x: t.x, y: t.y, n: b });
     }
@@ -627,7 +630,7 @@
     if (this.coins < B.cost) return 'poor';
     if (this.res.wood < B.wood || this.res.runes < B.runes) return 'poor';
     this.coins -= B.cost; this.res.wood -= B.wood; this.res.runes -= B.runes; this.spent += B.cost;
-    var b = { id: this.nid++, type: key, plot: plot, x: this.plotX[plot], lane: Math.floor(plot / 3), level: 1, queue: [], kind: B.kind };
+    var b = { id: this.nid++, type: key, plot: plot, x: this.plotX[plot], lane: Math.floor(plot / this.cols), level: 1, queue: [], kind: B.kind };
     this.buildings.push(b); this.plotUse[plot] = b.id;
     this.tray[slot] = this.b2Shop(slot);
     this.emit({ k: 'place', id: b.id });
@@ -1015,7 +1018,7 @@
     // the heart ticks once per quarter turn: the gears get their ticks then, not continuously
     this.tickAcc += dt * 4 / this.heartPeriod;
     while (this.tickAcc >= 1) { this.tickAcc -= 1; this.ticks++; this.fillGears(1); this.emit({ k: 'tick' }); }
-    if (this.hasBuildings) this.b2Tick(dt);
+    if (this.hasBuildings) { this.b2Tick(dt); this.trickle(dt); }
     this.heartA += (this.ticks * Math.PI / 2 - 0.35 - this.heartA) * Math.min(1, dt * 16);
     if (this.status === 'running') {
       this.waveTimer -= dt;
@@ -1052,6 +1055,15 @@
     if (this.status !== 'won') return 0;
     var f = this.leaks / this.maxLives;
     return f <= 0.1 ? 3 : f <= 0.4 ? 2 : 1;
+  };
+  // Books 2 and 3: gold always trickles in, a coin every trickleSec seconds (the settings slider sets the time), even between waves
+  P.trickle = function (dt) {
+    this.trickleAcc += dt;
+    while (this.trickleAcc >= this.trickleSec) {
+      this.trickleAcc -= this.trickleSec;
+      this.coins += F.TRICKLE_GOLD; this.earned += F.TRICKLE_GOLD;
+      this.emit({ k: 'coin', x: 90, y: 0, n: F.TRICKLE_GOLD });
+    }
   };
   P.enemiesAlive = function () { return this.units.filter(function (u) { return u.side === 'enemy'; }).length; };
   P.alliesAlive = function () { return this.units.filter(function (u) { return u.side === 'ally'; }).length; };

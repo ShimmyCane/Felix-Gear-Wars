@@ -20,7 +20,7 @@
   window.addEventListener('unhandledrejection', function (ev) { GW.err('Promise error', ev.reason); });
 
   // ---- settings and progress (device storage, always in try/catch) -----------------------------
-  var DEF = { preview: 1, champMax: 8, armyMax: 25, mode: 'medium', showFun: 0, funPeak: 3, funFade: 7, challenge: 1, bossRevs: 20, voice: 'auto', heartSpeed: 1, theme: 'manuscript', sfx: 0.8, music: 0.5, speed: 1, quick: 0, follow: 1, reading: 'auto', showErrors: 0 };
+  var DEF = { preview: 1, champMax: 8, armyMax: 25, mode: 'medium', showFun: 0, funPeak: 3, funFade: 7, challenge: 1, bossRevs: 20, voice: 'auto', heartSpeed: 1, trickle: F.TRICKLE_SLIDER, theme: 'manuscript', sfx: 0.8, music: 0.5, speed: 1, quick: 0, follow: 1, reading: 'auto', showErrors: 0 };
   var S = Object.assign({}, DEF);
   try { var raw = JSON.parse(localStorage.getItem('fgw.settings') || '{}'); Object.keys(DEF).forEach(function (k) { if (raw[k] !== undefined) S[k] = raw[k]; }); } catch (e) { /* storage blocked */ }
   function saveSettings() { try { localStorage.setItem('fgw.settings', JSON.stringify(S)); } catch (e) { /* ignore */ } }
@@ -63,7 +63,7 @@
   var drag = null, hudBtns = [], pointers = {};
   var pendingHole = null, lastDraw = 0;     // a peg waiting for its second tap to be cleared; last time the screen was drawn
   function makeSim(c) {
-    cfg = c; sim = new F.Sim(c, { seed: (Math.random() * 1e9) | 0, armyMax: +S.armyMax || F.FREE_ARMY, champMax: +S.champMax || F.MAX_CHAMPIONS, heartSpeed: +S.heartSpeed || 1, specialty: Art.specialty(), funPeak: +S.funPeak || 3, funFade: +S.funFade || 7, challenge: +S.challenge || 1 });
+    cfg = c; sim = new F.Sim(c, { seed: (Math.random() * 1e9) | 0, armyMax: +S.armyMax || F.FREE_ARMY, champMax: +S.champMax || F.MAX_CHAMPIONS, heartSpeed: +S.heartSpeed || 1, trickleSec: F.trickleSec(S.trickle), specialty: Art.specialty(), funPeak: +S.funPeak || 3, funFade: +S.funFade || 7, challenge: +S.challenge || 1 });
     sim.speed = F.SPEEDS.indexOf(+S.speed) >= 0 ? +S.speed : 1; pendingHole = null; b2Bld = null; b2Slot = -1; scroll = 0; parts = []; bolts = []; falls = {}; banner = null; selSlot = -1; selGear = 0; info = null; ended = false; endTimer = 0; paused = false;
     layout();
   }
@@ -447,12 +447,12 @@
     var o = { quick: +S.quick, mode: S.mode };
     if (c.free && c.book === 2) return F.b2FreeConfig(o);
     if (c.free && c.book === 3) return F.b3FreeConfig(o);
-    if (c.book === 2) { var i = Math.min(44, c.idx + step); return F.b2Config(Math.floor(i / 3) + 1, i % 3 + 1, o); }
-    if (c.book === 3) { var k = Math.min(29, c.idx + step); return F.b3Config(Math.floor(k / 3) + 1, k % 3 + 1, o); }
+    if (c.book === 2) { var i = Math.min(F.B2_CHAPTERS.length * F.B2_LV - 1, c.idx + step); return F.b2Config(Math.floor(i / F.B2_LV) + 1, i % F.B2_LV + 1, o); }
+    if (c.book === 3) { var k = Math.min(F.B3_CHAPTERS.length * F.B3_LV - 1, c.idx + step); return F.b3Config(Math.floor(k / F.B3_LV) + 1, k % F.B3_LV + 1, o); }
     if (c.free) return F.freeConfig(o);
     var j = c.idx + step; return F.levelConfig(Math.floor(j / 3) + 1, j % 3 + 1, o);
   }
-  function plotXY(i) { return [cellX(i % 3), cellY(Math.floor(i / 3))]; }
+  function plotXY(i) { return [cellX(i % sim.cols), cellY(Math.floor(i / sim.cols))]; }
   function findB(id) { return sim.buildings.filter(function (x) { return x.id === id; })[0]; }
   function b2PopupRect() { return { x: 250, y: 140, w: 780, h: 240 }; }
   function b2TrainRect(i) { var R = b2PopupRect(); return { x: R.x + 20 + i * 250, y: R.y + 90, w: 230, h: 62 }; }
@@ -608,8 +608,8 @@
     }
     if (sim.book === 3 && y >= L.bf.y) { b3Tap(x, y); return; }
     var cell = cellAt(x, y);
-    if (cell && cell[1] * 3 + cell[0] < sim.plotX.length) {
-      var plot = cell[1] * 3 + cell[0];
+    if (cell && cell[1] * sim.cols + cell[0] < sim.plotX.length) {
+      var plot = cell[1] * sim.cols + cell[0];
       if (sim.plotUse[plot]) { b2Bld = sim.plotUse[plot]; Au.play('tap'); return; }
       if (b2Slot >= 0) { var res = sim.b2Place(b2Slot, plot); if (res === 'ok') { b2Slot = -1; Au.play('place'); } else say(placeMsg(res)); }
       else say('Tap a building card first, then a plot');
@@ -625,7 +625,8 @@
   }
   function upgradeMsg(r) { return r === 'ok' ? 'Upgraded' : r === 'poor' ? 'Not enough gold or wood' : 'Fully upgraded'; }
   function placeMsg(r) { return r === 'poor' ? 'Not enough gold, wood or runes' : r === 'blocked' ? 'That plot is taken' : 'Nothing to place'; }
-  function book2Unlocked(ch, lv) { var idx = (ch - 1) * 3 + (lv - 1); if (idx === 0) return true; var p = idx - 1, pc = Math.floor(p / 3) + 1, pl = p % 3 + 1; return (P.stars['b2c' + pc + 'l' + pl] || 0) > 0; }
+  // a level opens when the level before it (in book order) has at least one star
+  function book2Unlocked(ch, lv) { var idx = (ch - 1) * F.B2_LV + (lv - 1); if (idx === 0) return true; var p = idx - 1, pc = Math.floor(p / F.B2_LV) + 1, pl = p % F.B2_LV + 1; return (P.stars['b2c' + pc + 'l' + pl] || 0) > 0; }
 
   // ---- input --------------------------------------------------------------------------------------
   function toLogical(e) { var r = cv.getBoundingClientRect(); return [(e.clientX - r.left - OX) / SC, (e.clientY - r.top - OY) / SC]; }
@@ -742,6 +743,7 @@
       requestAnimationFrame(function () { try { portrait(cvs, C.n, 260, 120, false); } catch (e) { GW.err('Portrait', e); } });
     });
     // book 2: opens when chapter 10 of book 1 is beaten; its chapters use buildings and resources
+    var B2_LAST = 'b2c' + F.B2_CHAPTERS.length + 'l' + F.B2_LV;   // beating it opens book 3
     var b2h = document.createElement('h2'); b2h.id = 'book2Head'; b2h.textContent = 'Book 2: The Gear Works'; box.appendChild(b2h);
     if (+S.preview || P.stars.c10l3 > 0) { var e2 = document.createElement('button'); e2.type = 'button'; e2.className = 'lvBtn'; e2.textContent = 'Endless · best wave ' + (P.freeBest2 || 0);
       e2.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.b2FreeConfig({ quick: +S.quick, mode: S.mode })); }); box.appendChild(e2); }
@@ -750,10 +752,10 @@
       var card = document.createElement('section'); card.className = 'chapter';
       var h = document.createElement('h3'); h.textContent = C.n + '. ' + C.title + '  (' + Art.unitName(C.unit) + ')'; card.appendChild(h);
       var row = document.createElement('div'); row.className = 'lvRow';
-      for (var lv = 1; lv <= 3; lv++) (function (lv) {
+      for (var lv = 1; lv <= F.B2_LV; lv++) (function (lv) {
         var b = document.createElement('button'); b.type = 'button'; b.className = 'lvBtn'; var id = 'b2c' + C.n + 'l' + lv, st = P.stars[id] || 0, ok = !!(+S.preview) || book2Unlocked(C.n, lv);
         b.disabled = !ok; b.setAttribute('aria-label', 'Book 2 chapter ' + C.n + ' level ' + lv);
-        b.innerHTML = '<span class="lvNum">' + (lv === 3 ? '♛' : lv) + '</span><span class="lvStars">' + (ok ? '★'.repeat(st) + '☆'.repeat(3 - st) : '🔒') + '</span>';
+        b.innerHTML = '<span class="lvNum">' + (lv === F.B2_LV ? '♛' : lv) + '</span><span class="lvStars">' + (ok ? '★'.repeat(st) + '☆'.repeat(3 - st) : '🔒') + '</span>';
         b.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.b2Config(C.n, lv, { quick: +S.quick, mode: S.mode })); });
         row.appendChild(b);
       })(lv);
@@ -761,18 +763,18 @@
     });
     // book 3: the Lanes, after book 2 chapter 15
     var b3h = document.createElement('h2'); b3h.id = 'book3Head'; b3h.textContent = 'Book 3: The Lanes'; box.appendChild(b3h);
-    if (+S.preview || P.stars.b2c15l3 > 0) { var e3 = document.createElement('button'); e3.type = 'button'; e3.className = 'lvBtn'; e3.textContent = 'Endless · best wave ' + (P.freeBest3 || 0);
+    if (+S.preview || P.stars[B2_LAST] > 0) { var e3 = document.createElement('button'); e3.type = 'button'; e3.className = 'lvBtn'; e3.textContent = 'Endless · best wave ' + (P.freeBest3 || 0);
       e3.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.b3FreeConfig({ quick: +S.quick, mode: S.mode })); }); box.appendChild(e3); }
-    if (!(+S.preview || P.stars.b2c15l3 > 0)) { var lk3 = document.createElement('p'); lk3.textContent = 'Locked: beat book 2 to open book 3 (or turn on Preview in the settings).'; box.appendChild(lk3); }
+    if (!(+S.preview || P.stars[B2_LAST] > 0)) { var lk3 = document.createElement('p'); lk3.textContent = 'Locked: beat book 2 to open book 3 (or turn on Preview in the settings).'; box.appendChild(lk3); }
     else for (var b3c = 1; b3c <= 10; b3c++) (function (n) {
       var card = document.createElement('section'); card.className = 'chapter';
       var h = document.createElement('h3'); h.textContent = n + '. ' + F.B3_CHAPTERS[n - 1].title; card.appendChild(h);
       var row = document.createElement('div'); row.className = 'lvRow';
-      for (var lv = 1; lv <= 3; lv++) (function (lv) {
-        var b = document.createElement('button'); b.type = 'button'; b.className = 'lvBtn'; var idx = (n - 1) * 3 + (lv - 1), id = 'b3c' + n + 'l' + lv, st = P.stars[id] || 0;
-        var ok = !!(+S.preview) || idx === 0 || (P.stars['b3c' + (Math.floor((idx - 1) / 3) + 1) + 'l' + ((idx - 1) % 3 + 1)] || 0) > 0;
+      for (var lv = 1; lv <= F.B3_LV; lv++) (function (lv) {
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'lvBtn'; var idx = (n - 1) * F.B3_LV + (lv - 1), id = 'b3c' + n + 'l' + lv, st = P.stars[id] || 0;
+        var ok = !!(+S.preview) || idx === 0 || (P.stars['b3c' + (Math.floor((idx - 1) / F.B3_LV) + 1) + 'l' + ((idx - 1) % F.B3_LV + 1)] || 0) > 0;
         b.disabled = !ok; b.setAttribute('aria-label', 'Book 3 chapter ' + n + ' level ' + lv);
-        b.innerHTML = '<span class="lvNum">' + (lv === 3 ? '♛' : lv) + '</span><span class="lvStars">' + (ok ? '★'.repeat(st) + '☆'.repeat(3 - st) : '🔒') + '</span>';
+        b.innerHTML = '<span class="lvNum">' + (lv === F.B3_LV ? '♛' : lv) + '</span><span class="lvStars">' + (ok ? '★'.repeat(st) + '☆'.repeat(3 - st) : '🔒') + '</span>';
         b.addEventListener('click', function () { Au.init(); Au.play('tap'); showStory(F.b3Config(n, lv, { quick: +S.quick, mode: S.mode })); });
         row.appendChild(b);
       })(lv);
@@ -824,7 +826,7 @@
     $('resText').textContent = cfg.free ? 'Best: wave ' + (P[bestKey(cfg)] || 0) : win ? 'Lives left ' + sim.lives + ' of ' + sim.maxLives + ' · Coins earned ' + sim.earned + ' · Enemies beaten ' + sim.kills
       : 'Next time you start with a few extra coins. Try other gears, or merge to make stronger fighters.';
     var nxt = $('resNext'), idx = cfg.idx;
-    nxt.hidden = !(win && !cfg.free && (cfg.book === 2 ? idx < 44 : cfg.book === 3 ? idx < 29 : true));
+    nxt.hidden = !(win && !cfg.free && (cfg.book === 2 ? idx < F.B2_CHAPTERS.length * F.B2_LV - 1 : cfg.book === 3 ? idx < F.B3_CHAPTERS.length * F.B3_LV - 1 : true));
     $('resRetry').textContent = win ? 'Play again' : 'Try again';
     show('result');
     if (win && !cfg.free) setTimeout(function () { for (var i = 0; i < stars; i++) (function (i) { setTimeout(function () { Au.play('star', i); }, i * 260); })(i); }, 200);
@@ -832,6 +834,7 @@
 
   // ---- settings drawer ---------------------------------------------------------------------------
   var VOL = { '0': 'Off', '0.4': 'Low', '0.8': 'Medium', '1': 'High' };
+  function trickleLabel(v) { var sec = F.trickleSec(v); return (sec < 10 ? sec.toFixed(1) : Math.round(sec)) + ' s'; }
   function syncSettings() {
     document.querySelectorAll('.seg').forEach(function (seg) {
       var k = seg.getAttribute('data-key'); var cur = String(S[k]);
@@ -843,6 +846,7 @@
     F.BOSS_REVS = +S.bossRevs || 20;
     var am = $('armyMax'); if (am) { am.value = S.armyMax; $('armyMaxVal').textContent = S.armyMax; }
     var cm = $('champMax'); if (cm) { cm.value = S.champMax; $('champMaxVal').textContent = S.champMax; }
+    var tk = $('trickle'); if (tk) { tk.value = S.trickle; $('trickleVal').textContent = trickleLabel(S.trickle); }
     var hs = $('heartSpeed'); if (hs) { hs.value = S.heartSpeed; $('heartSpeedVal').textContent = '×' + (+S.heartSpeed).toFixed(2).replace(/0$/, ''); }
     Art.setTheme(S.theme); Au.setVolumes(+S.sfx, +S.music);
     if (sim) sim.specialty = Art.specialty();
@@ -876,6 +880,8 @@
     if (cm2) cm2.addEventListener('input', function () { S.champMax = +cm2.value; saveSettings(); $('champMaxVal').textContent = S.champMax; if (sim) sim.maxChamps = S.champMax; });
     var am2 = $('armyMax');
     am2.addEventListener('input', function () { S.armyMax = +am2.value; saveSettings(); $('armyMaxVal').textContent = S.armyMax; if (sim && cfg.free) { sim.maxArmy = S.armyMax; sim.maxEnemy = Math.ceil(S.armyMax * F.freeFoe(cfg.mode)); } });
+    var tk2 = $('trickle');
+    tk2.addEventListener('input', function () { S.trickle = +tk2.value; saveSettings(); $('trickleVal').textContent = trickleLabel(S.trickle); if (sim) sim.trickleSec = F.trickleSec(S.trickle); });
     var hs = $('heartSpeed');
     hs.addEventListener('input', function () { S.heartSpeed = +hs.value; saveSettings(); $('heartSpeedVal').textContent = '×' + (+hs.value).toFixed(2).replace(/0$/, ''); if (sim) sim.heartPeriod = F.HEART_PERIOD / S.heartSpeed; });
     $('showErrors').addEventListener('change', function () { S.showErrors = this.checked ? 1 : 0; saveSettings(); renderErrors(); });

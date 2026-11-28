@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var F = globalThis.FGW = globalThis.FGW || {};
-  F.version = '0.9.1';
+  F.version = '0.10.0';
 
   // ---- the world --------------------------------------------------------------------------
   F.VIEW_W = 1280;             // logical width of the screen
@@ -64,19 +64,19 @@
   var B2ONES = []; for (var b2i = 0; b2i < 45; b2i++) B2ONES.push(1);
   var B2ONES30 = []; for (var b3i = 0; b3i < 30; b3i++) B2ONES30.push(1);
   // tuned2:begin (written by tools/balance_tune.js apply; re-tune after changing the rules)
-  F.B2_MODE_PRESS = { easy: 1.559, medium: 1.854, hard: 2.859 };
+  F.B2_MODE_PRESS = { easy: 1.461, medium: 1.593, hard: 2.404 };
   F.B2_LEVEL_PRESS = {
-    easy: [0.92, 0.92, 0.778, 1, 1, 1, 1, 1, 1, 0.92, 1, 0.92, 0.92, 0.92, 0.92, 1, 1, 1, 1, 1, 1, 1, 0.92, 0.846, 1, 1, 0.92, 1, 0.92, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-    medium: [0.846, 0.778, 0.778, 1.331, 1.21, 1.012, 1.331, 1.331, 1.331, 0.778, 0.846, 0.931, 0.778, 0.846, 0.778, 1.21, 1.21, 1.1, 0.931, 1.012, 1, 1.113, 0.92, 0.846, 1, 1.012, 1.012, 1.1, 1.012, 0.931, 1, 1.331, 1.1, 1.1, 1.1, 1.012, 1.012, 1.1, 1.1, 1.21, 1.1, 1.21, 1.331, 1.331, 1.331],
-    hard: [1.1, 1, 0.778, 1.1, 1.113, 1, 1.1, 1.1, 1.1, 0.846, 0.92, 0.92, 0.778, 0.778, 0.778, 0.92, 1, 0.92, 1.012, 0.92, 1, 1, 0.92, 0.778, 0.92, 0.846, 0.846, 1, 0.92, 0.92, 0.778, 1, 1, 1, 0.846, 0.846, 1, 1.21, 1.012, 1, 1.012, 0.92, 1.21, 1, 1]
+    easy: [0.92, 0.92, 0.846, 0.778, 0.778, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.92, 0.92, 1, 0.778, 0.846, 0.846, 0.846, 0.778, 0.778, 0.778, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.92, 0.92, 0.846, 0.846, 1, 1, 1, 0.92, 0.92, 1, 0.92, 0.92, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    medium: [0.943, 0.725, 0.778, 1.036, 1.036, 1.6, 1.464, 1.464, 1.224, 1.224, 1.464, 1.464, 1.348, 1.464, 1.347, 0.942, 0.931, 0.846, 0.867, 0.788, 0.778, 0.857, 0.716, 0.659, 0.606, 1.024, 1.113, 1.21, 1.113, 1.113, 1.126, 1.024, 1.024, 1.1, 1, 1.024, 1.012, 1.012, 1.024, 0.931, 1.012, 1.024, 1.012, 0.857, 1.012, 1.012, 1.024, 1.012, 1.024, 1.024, 1.1, 1.127, 1.225, 1.224, 1.012, 1.21, 0.931, 1.1, 1.113, 1.024, 1.113, 1.21, 1.1, 1.464, 1.21, 1.21, 1.113, 1.21, 1.331, 1.331, 1.6, 1.6, 1.6, 1.6, 1.6],
+    hard: [1.21, 0.92, 0.778, 0.856, 0.725, 1.225, 1.126, 1.113, 1.113, 1.1, 1.21, 1.113, 1.21, 1.21, 1.1, 0.778, 0.846, 0.778, 0.856, 0.716, 0.716, 0.659, 0.606, 0.606, 0.606, 0.778, 0.846, 0.846, 0.92, 0.931, 0.931, 0.778, 0.778, 0.846, 0.846, 0.846, 0.778, 0.778, 0.716, 0.659, 0.778, 0.659, 0.778, 0.659, 0.716, 0.846, 0.716, 0.716, 0.846, 0.846, 0.788, 0.846, 0.846, 0.846, 0.846, 0.846, 0.716, 0.778, 0.856, 0.716, 0.846, 1.113, 0.942, 1.012, 0.857, 1, 0.931, 0.931, 1.113, 0.846, 1.331, 1.21, 1.21, 1.331, 1.012]
   };
   // tuned2:end
   // tuned3:begin (written by tools/balance_tune.js apply; re-tune after changing the rules)
-  F.B3_MODE_PRESS = { easy: 1.056, medium: 1.228, hard: 1.775 };
+  F.B3_MODE_PRESS = { easy: 1.033, medium: 1.033, hard: 1.493 };
   F.B3_LEVEL_PRESS = {
-    easy: [1, 1, 0.846, 1, 1, 1, 1, 1, 1, 1, 1, 0.92, 1, 1, 1, 1, 1, 1, 1, 0.92, 0.92, 1, 0.92, 0.92, 0.92, 1, 1, 1, 1, 1],
-    medium: [1.21, 1.21, 0.931, 1.331, 1.331, 1.331, 1.331, 1.21, 1.21, 1.1, 1.1, 0.846, 1.331, 1.331, 1.113, 1.21, 1.113, 1.1, 1.113, 1.012, 0.846, 1.331, 1.012, 0.931, 1.012, 1, 0.778, 1.113, 1.1, 1.012],
-    hard: [1.1, 1, 0.778, 1.1, 1.331, 1.21, 1.1, 1.1, 0.92, 1, 1.1, 0.92, 1.21, 1.331, 1, 1.012, 0.92, 1.012, 0.92, 0.92, 0.92, 0.92, 0.92, 0.92, 0.778, 0.846, 0.778, 1, 0.92, 0.92]
+    easy: [1, 1, 0.846, 0.846, 0.846, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.92, 1, 1, 0.92, 0.846, 1, 1, 1, 1, 0.92, 1, 1, 1, 1, 1, 1, 0.92, 0.92, 0.92, 0.92, 1, 0.92, 0.92, 0.92, 0.92, 0.92, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    medium: [1.464, 1.331, 1.225, 1.239, 1.239, 1.6, 1.6, 1.6, 1.6, 1.464, 1.464, 1.331, 1.464, 1.21, 1.126, 1.012, 1.012, 1.1, 1.024, 0.778, 1.348, 1.464, 1.225, 1.024, 1.126, 1.113, 1.024, 1.113, 1.113, 1.012, 1.113, 1.113, 1.012, 0.931, 1.024, 1.037, 0.942, 1.012, 1.024, 0.931, 1.012, 0.92, 1.113, 1.036, 1.036, 1.224, 1.113, 1.331, 1.224, 1.113],
+    hard: [1.21, 1.1, 0.931, 1.036, 1.036, 1.331, 1.464, 1.225, 1.21, 1.21, 1.012, 1.113, 1.012, 1.024, 0.931, 0.92, 0.857, 1.012, 0.778, 0.778, 1.113, 1.225, 1.037, 0.92, 0.846, 0.931, 0.846, 0.778, 0.943, 0.788, 0.931, 0.846, 0.778, 0.846, 0.778, 0.778, 0.846, 0.716, 0.846, 0.778, 0.778, 0.716, 0.846, 0.788, 0.778, 1.012, 0.846, 0.931, 0.931, 0.846]
   };
   // tuned3:end
   F.modeOf = function (m) { return F.MODES[m] ? m : 'medium'; };
@@ -510,46 +510,56 @@
     { n: 8, title: 'The Battlemage Gate', terrain: [] }, { n: 9, title: 'Every Road at Once', terrain: [] }, { n: 10, title: 'The Last Crossing', terrain: [] },
   ];
   F.b3Config = function (ch, lv, o) {
-    o = o || {}; var idx = (ch - 1) * 3 + (lv - 1), C = F.B3_CHAPTERS[ch - 1];
+    o = o || {}; var idx = (ch - 1) * F.B3_LV + (lv - 1), C = F.B3_CHAPTERS[ch - 1];
     var pool = F.b3Unlocked(ch), gold = 180 + 15 * idx, unit = pool[pool.length - 1] || 'spearman';
     return {
       id: 'b3c' + ch + 'l' + lv, book: 3, lanes: 3, ch: ch, lv: lv, idx: idx, seed: 7000 + idx * 77, free: false, world: 2560,
-      board: { cols: 3, rows: 3, heart: { c: 0, r: 0 }, holes: [], dormant: [] },
+      board: { cols: F.B3_COLS, rows: 3, heart: { c: 0, r: 0 }, holes: [], dormant: [] },
       lives: 20 + 5 * ch, coins: gold, creep: 0, gearTarget: 0, lastWave: 5 + idx, dynamic: true, len: 1, waves: [],
-      bossName: lv === 3 ? 'The Lane Captain ' + ch : null, bossType: lv === 3 ? unit : null,
+      bossName: lv === F.B3_LV ? 'The Lane Captain ' + ch : null, bossType: lv === F.B3_LV ? unit : null,
       baseHp: F.TUNE.fort + F.TUNE.fortPer * idx, pool: pool, specials: [], quick: !!o.quick, mode: F.modeOf(o.mode),
-      terrain: C.terrain, plots: 9, res: { food: 80, wood: 50, runes: 25 },
+      terrain: C.terrain, plots: F.B3_PLOTS, res: { food: 80, wood: 50, runes: 25 },
       story: { cap: 'Book 3, chapter ' + ch + ': ' + C.title, short: 'Three lanes. Send fighters where the Horde is thinnest.', story: 'The road splits into three lanes. Your fighters can flank into the next lane to meet the enemy where it is weakest.' },
     };
   };
   F.B2_BOSS = { 3: 'The Marsh Witch', 6: 'Lord of the Pines', 9: 'The Bell Keeper', 12: 'Bronze Warden', 15: 'The Battlemage King' };
-  F.B2_PLOTS = 6;              // building plots along the front of the map
+  // Books 2 and 3: levels per chapter (the boss is on the last one), and plots: a grid of cols x rows. Enough for every
+  // building (five unit buildings and four resource buildings in book 2; eight unit buildings and four resources in book 3) plus three blank plots.
+  F.B2_LV = 5; F.B3_LV = 5;
+  F.B2_COLS = 6; F.B2_ROWS = 2; F.B2_PLOTS = F.B2_COLS * F.B2_ROWS;     // 12 plots in book 2
+  F.B3_COLS = 5; F.B3_PLOTS = 3 * F.B3_COLS;                              // 15 plots in book 3: five per lane, three lanes
+  // Gold: a killed unit pays more the higher its gear level (books 2 and 3). A base trickle of gold runs all the time:
+  // one coin every TRICKLE_SEC seconds, set in the settings on a log scale (the slider value is 0 to 100).
+  F.LEVEL_BOUNTY = 0.5;                                                   // a level-2 kill pays 1.5 times, level 6 pays 3.5 times
+  F.levelBounty = function (level) { return 1 + F.LEVEL_BOUNTY * ((level || 1) - 1); };
+  F.TRICKLE_GOLD = 1; F.TRICKLE_SEC = 8; F.TRICKLE_SLIDER = 58;          // 58 on the slider is 8 seconds
+  F.trickleSec = function (v) { return 0.5 * Math.pow(120, (+v || 0) / 100); };   // 0.5 seconds to one minute
   F.b2Unlocked = function (ch) { var res = []; for (var i = 0; i < ch; i++) res.push(F.B2_SEQ[i]); return res; };
   F.b2Buildings = function (ch, book) { return Object.keys(F.B2_BUILDINGS).filter(function (k) { return F.B2_BUILDINGS[k].unlock <= ch && (book === 3 || !F.B3_BUILDINGS[k]); }); };
   // Endless play for books 2 and 3: every unit of the book, the waves keep growing, the fortress cannot fall. Best wave is kept per book.
   F.b2FreeConfig = function (o) {
-    o = o || {}; var c = F.b2Config(15, 3, o), pool = F.b2Unlocked(15);
-    c.id = 'b2free'; c.free = true; c.ch = 15; c.lv = 0; c.idx = 44; c.bossName = null; c.bossType = null; c.bossEvery = 5;
-    c.pool = pool; c.lives = 60; c.coins = 400; c.baseHp = 99999; c.res = { food: 120, wood: 80, runes: 40 }; c.plots = 6; c.terrain = [];
+    o = o || {}; var c = F.b2Config(15, F.B2_LV, o), pool = F.b2Unlocked(15);
+    c.id = 'b2free'; c.free = true; c.ch = 15; c.lv = 0; c.idx = 15 * F.B2_LV - 1; c.bossName = null; c.bossType = null; c.bossEvery = 5;
+    c.pool = pool; c.lives = 60; c.coins = 400; c.baseHp = 99999; c.res = { food: 120, wood: 80, runes: 40 }; c.plots = F.B2_PLOTS; c.terrain = [];
     c.story = { cap: 'Book 2: endless', short: 'Every Gear Works unit, every building. The Horde never stops.', story: 'No chapter now. Build the Works, train every unit and hold back the Horde for as long as you can.' };
     return c;
   };
   F.b3FreeConfig = function (o) {
-    o = o || {}; var c = F.b3Config(10, 3, o), pool = F.b3Unlocked(10);
-    c.id = 'b3free'; c.free = true; c.ch = 10; c.lv = 0; c.idx = 29; c.bossName = null; c.bossType = null; c.bossEvery = 5;
-    c.pool = pool; c.lives = 60; c.coins = 400; c.baseHp = 99999; c.res = { food: 120, wood: 80, runes: 40 }; c.plots = 9; c.terrain = [];
+    o = o || {}; var c = F.b3Config(10, F.B3_LV, o), pool = F.b3Unlocked(10);
+    c.id = 'b3free'; c.free = true; c.ch = 10; c.lv = 0; c.idx = 10 * F.B3_LV - 1; c.bossName = null; c.bossType = null; c.bossEvery = 5;
+    c.pool = pool; c.lives = 60; c.coins = 400; c.baseHp = 99999; c.res = { food: 120, wood: 80, runes: 40 }; c.plots = F.B3_PLOTS; c.terrain = [];
     c.story = { cap: 'Book 3: endless', short: 'Three lanes, every unit, every flank. The Horde never stops.', story: 'The lanes run on forever. Flank, freeze and build, and hold the Horde as long as you can.' };
     return c;
   };
   F.b2UnitTime = function (type) { return 6 + 2 * F.tierOf(type === 'monk' ? 'monk' : type) / 4; };   // seconds to train a unit
   F.b2Config = function (ch, lv, o) {
-    o = o || {}; var idx = (ch - 1) * 3 + (lv - 1), C = F.B2_CHAPTERS[ch - 1];
+    o = o || {}; var idx = (ch - 1) * F.B2_LV + (lv - 1), C = F.B2_CHAPTERS[ch - 1];
     var pool = F.b2Unlocked(ch), gold = 150 + 15 * idx;
     return {
       id: 'b2c' + ch + 'l' + lv, book: 2, ch: ch, lv: lv, idx: idx, seed: 5000 + idx * 77, free: false, world: 2560,
-      board: { cols: 3, rows: 2, heart: { c: 0, r: 0 }, holes: [], dormant: [] },
+      board: { cols: F.B2_COLS, rows: F.B2_ROWS, heart: { c: 0, r: 0 }, holes: [], dormant: [] },
       lives: 20 + 5 * ch, coins: gold, creep: 0, gearTarget: 0, lastWave: 5 + idx, dynamic: true, len: 1, waves: [],
-      bossName: lv === 3 ? F.B2_BOSS[ch] || null : null, bossType: lv === 3 ? C.unit : null,
+      bossName: lv === F.B2_LV ? F.B2_BOSS[ch] || null : null, bossType: lv === F.B2_LV ? C.unit : null,
       baseHp: F.TUNE.fort + F.TUNE.fortPer * idx, pool: pool, specials: [], quick: !!o.quick, mode: F.modeOf(o.mode),
       terrain: C.terrain, plots: F.B2_PLOTS, res: { food: 60, wood: 40, runes: 20 },
       story: { cap: 'Chapter ' + ch + ': ' + C.title, short: Art_unit(C.unit) + ' joins the Works.', story: 'In the Gear Works, ' + C.unit + ' is the new unit. Build the buildings that make it, and keep the Horde back.' },
