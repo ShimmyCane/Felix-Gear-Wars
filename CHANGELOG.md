@@ -2,6 +2,36 @@
 
 Newest first. The version number is `F.version` in `js/data.js`; the balance numbers are in `research/balance.md`.
 
+## 0.12.0
+
+- **Book 3 allies have 2.5 times their hit points**, so they last through a wave. (A test at 4 and 6 times gave no more gain: the armies are still limited by how many units the buildings make.)
+- **The castle is always plot 1 in book 3.** Nothing is built there. The castle sends a hero every 90, 150 or 240 seconds (easy, medium, hard).
+- **Hero.** Tough (1,200 hit points) and it guards the castle until you give an order. Attack sends every ally forward. Defend brings them back to the castle. Lane up and Lane down move the hero a lane. Allies in the hero's lane and within 360 fight at 1.2 times attack and defence.
+- **Book 3 battle uses book 1's side view.** The three lanes show as dashed lines, and units stand at their lane's depth. Tap targets follow the drawing.
+- **Book 2 and 3 unit buildings show book 1's gear art** on their plots.
+- **Resource buildings upgrade without a cap.** Each level multiplies output by 1.4 (level 5 gives 3.8 times, level 10 gives 21 times). The upgrade price grows by 1.25 per level, so the economy keeps up with harder enemies. Unit buildings still stop at level 3.
+- Book 2 and 3 press numbers re-tuned for the upgrade economy.
+
+## 0.11.0
+
+- **Units cost four things in books 2 and 3.** Each unit takes food, wood, gold and runes to train (the table is `F.TRAIN` in `js/data.js`). Ranged units lean on wood, magic units on runes, the rest on gold. The training popup shows every cost, and a short one shows in red.
+- **Six units can queue in a building** (was three). The popup shows how many are waiting.
+- **Fixed: some units took 55 seconds to train.** Units added after book 1 were missing from the tier list, so they fell back to the slowest time. Every unit now has its own time.
+- **Headless balance report.** `python3 tools/balance_report.py` runs the book bot on every level of books 2 and 3 and prints a line per chapter (win rate, boss win rate, leaks, and a flag when a chapter is outside the band). `--book`, `--mode`, `--runs` and `--chapters` choose what runs.
+- Press numbers re-tuned for the new costs (`tools/balance_tune.js`); the bot has since changed, so book 2 is due another re-tune.
+- **Each book has its own training table** (`F.TRAIN_BOOK`). `tools/balance_book2.py` and `tools/balance_book3.py` price each book from its units' power and role, play every level with the bot, and report the army, idle buildings and leftover stock per chapter. `--write` saves the table.
+- **The bot builds one of each resource first, buys upgrades for resource buildings, and reports army and stock** (`node tools/bot2.js json`).
+
+## 0.10.0
+
+- **Books 2 and 3 have five levels per chapter.** The boss is on level 5. Beating a level opens the next one, as before.
+- **More plots.** Book 2 has twelve plots (a 6 by 2 grid): enough for the five unit buildings, the four resource buildings and three spare. Book 3 has fifteen (five per lane): enough for its eight unit buildings, four resource buildings and three spare.
+- **Kills pay more at higher levels** (books 2 and 3). A level-2 kill pays 1.5 times, level 6 pays 3.5 times.
+- **Base gold trickle** (books 2 and 3). One coin every eight seconds, even between waves. A new slider in the settings (log scale, half a second to one minute) sets the time, for testing.
+- **Five level buttons fit on a phone.** The fifth (boss) button of each book 2 and 3 chapter ran off the card.
+- **Notes name the book 2 and 3 chapters** (they read "undefined" before).
+- Book 2 and 3 press numbers re-tuned for five levels (`tools/balance_tune.js`, `BOOK=2` or `BOOK=3`).
+
 ## 0.9.1
 
 - **Books 2 and 3 are easy to find.** The settings open with a Levels and books panel: Book 2 and Book 3 buttons jump straight to their levels. The map has Book 1, 2 and 3 tabs at the top. A Preview switch (on by default) opens every level of books 2 and 3; Locked makes them wait for the book before.

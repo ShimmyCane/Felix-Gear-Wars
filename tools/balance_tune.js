@@ -18,8 +18,10 @@ var BOOK2 = process.env.BOOK === '2', BOOK3 = process.env.BOOK === '3', BOOK = B
 
 var TARGET = { easy: 0.95, medium: 0.75, hard: 0.35 };
 var BAND = { easy: [0.9, 1.0], medium: [0.6, 0.85], hard: [0.2, 0.5] };     // verify: the bot's win rate must fall in these
-var SAMPLE = BOOK3 ? [[1, 1], [2, 2], [3, 1], [4, 3], [5, 2], [6, 1], [7, 3], [8, 2], [9, 1], [10, 3]] : BOOK2 ? [[1, 1], [2, 2], [3, 1], [4, 3], [5, 2], [6, 1], [7, 3], [8, 2], [9, 1], [10, 3], [12, 2], [15, 1]] : [[1, 1], [1, 3], [2, 2], [3, 1], [4, 3], [5, 2], [6, 3], [7, 1], [8, 1], [8, 3], [9, 2], [10, 1]];   // spread over the campaign
-var ALL = []; for (var i = 0; i < (BOOK2 ? 45 : BOOK3 ? 30 : 30); i++) ALL.push([Math.floor(i / 3) + 1, i % 3 + 1]);
+var SAMPLE = BOOK3 ? [[1, 1], [2, 2], [3, 3], [4, 4], [5, 2], [6, 1], [7, 3], [8, 2], [9, 1], [10, 5]] : BOOK2 ? [[1, 1], [2, 2], [3, 5], [4, 3], [5, 2], [6, 4], [7, 3], [8, 2], [9, 5], [10, 1], [12, 5], [15, 4]] : [[1, 1], [1, 3], [2, 2], [3, 1], [4, 3], [5, 2], [6, 3], [7, 1], [8, 1], [8, 3], [9, 2], [10, 1]];   // spread over the campaign (books 2 and 3: the boss is level 5)
+// levels per chapter: book 1 has three; books 2 and 3 have F.B2_LV and F.B3_LV (boss on the last one)
+var PER = BOOK2 ? F.B2_LV : BOOK3 ? F.B3_LV : 3, CHAPS = BOOK2 ? F.B2_CHAPTERS.length : BOOK3 ? F.B3_CHAPTERS.length : 10;
+var ALL = []; for (var i = 0; i < CHAPS * PER; i++) ALL.push([Math.floor(i / PER) + 1, i % PER + 1]);
 
 function play(mode, p, seed) {
   if (BOOK2) return Bot2.playLevel(F.b2Config(p[0], p[1], { mode: mode }), seed);
