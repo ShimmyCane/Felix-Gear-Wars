@@ -642,15 +642,16 @@
     if (!b || b.kind !== 'unit') return 'none';
     if (F.B2_BUILDINGS[b.type].units.indexOf(unit) < 0 || F.unlockedFor(this.cfg).indexOf(unit) < 0) return 'locked';
     if (b.queue.length >= F.B2_QUEUE) return 'full';
-    var c = F.trainCost(unit); if (!c) return 'none';
+    var c = this.trainCost(unit); if (!c) return 'none';
     var short = this.trainShort(unit); if (short) return short;
     this.res.food -= c.food; this.res.wood -= c.wood; this.res.runes -= c.runes; this.coins -= c.gold; this.spent += c.gold;
-    b.queue.push({ type: unit, left: F.b2UnitTime(unit) / (1 + 0.25 * (b.level - 1)), total: F.b2UnitTime(unit) / (1 + 0.25 * (b.level - 1)) });
+    b.queue.push({ type: unit, left: F.b2UnitTime(unit, this.book) / (1 + 0.25 * (b.level - 1)), total: F.b2UnitTime(unit, this.book) / (1 + 0.25 * (b.level - 1)) });
     return 'ok';
   };
   // What is missing to train one unit: 'food', 'wood', 'gold' or 'runes' (the first short one), or null when all four are there
+  P.trainCost = function (unit) { return F.trainCost(unit, this.book); };   // the four costs in this book
   P.trainShort = function (unit) {
-    var c = F.trainCost(unit); if (!c) return 'none';
+    var c = this.trainCost(unit); if (!c) return 'none';
     if (this.res.food < c.food) return 'food';
     if (this.res.wood < c.wood) return 'wood';
     if (this.coins < c.gold) return 'gold';

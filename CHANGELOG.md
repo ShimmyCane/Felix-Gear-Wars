@@ -8,7 +8,9 @@ Newest first. The version number is `F.version` in `js/data.js`; the balance num
 - **Six units can queue in a building** (was three). The popup shows how many are waiting.
 - **Fixed: some units took 55 seconds to train.** Units added after book 1 were missing from the tier list, so they fell back to the slowest time. Every unit now has its own time.
 - **Headless balance report.** `python3 tools/balance_report.py` runs the book bot on every level of books 2 and 3 and prints a line per chapter (win rate, boss win rate, leaks, and a flag when a chapter is outside the band). `--book`, `--mode`, `--runs` and `--chapters` choose what runs.
-- Press numbers re-tuned for the new costs (`tools/balance_tune.js`).
+- Press numbers re-tuned for the new costs (`tools/balance_tune.js`); the bot has since changed, so book 2 is due another re-tune.
+- **Each book has its own training table** (`F.TRAIN_BOOK`). `tools/balance_book2.py` and `tools/balance_book3.py` price each book from its units' power and role, play every level with the bot, and report the army, idle buildings and leftover stock per chapter. `--write` saves the table.
+- **The bot builds one of each resource first, buys upgrades for resource buildings, and reports army and stock** (`node tools/bot2.js json`).
 
 ## 0.10.0
 

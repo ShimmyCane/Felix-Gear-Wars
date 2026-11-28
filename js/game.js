@@ -508,13 +508,13 @@
       if (locked) txt(c, 'not yet', r.x + r.w / 2, r.y + 44, 14, T.text, 'center', '700');
       else {
         // four costs, each in its own colour: red when that one is short (food, wood, gold, runes; a zero cost is left out)
-        var tc = F.trainCost(u), short = sim.trainShort(u), cs = [['food', tc.food], ['wood', tc.wood], ['gold', tc.gold], ['runes', tc.runes]].filter(function (p) { return p[1] > 0; });
+        var tc = sim.trainCost(u), short = sim.trainShort(u), cs = [['food', tc.food], ['wood', tc.wood], ['gold', tc.gold], ['runes', tc.runes]].filter(function (p) { return p[1] > 0; });
         cs.forEach(function (p, k) {
           var row = k < 2 ? 0 : 1, inRow = row === 0 ? Math.min(2, cs.length) : cs.length - 2, col = row === 0 ? k : k - 2;
           var x = r.x + r.w / 2 + (col - (inRow - 1) / 2) * 70, y = r.y + (row ? 52 : 37);
           txt(c, p[0] + ' ' + p[1], x, y, 13, p[0] === short ? Art.C('#c0392b') : T.text, 'center', '700');
         });
-        txt(c, F.TRAIN[u][4] + ' s', r.x + r.w - 10, r.y + 12, 11, T.text, 'right', '700');
+        txt(c, F.b2UnitTime(u, sim.book) + ' s', r.x + r.w - 10, r.y + 12, 11, T.text, 'right', '700');
       }
     });
     var ur = b2UpgradeRect();

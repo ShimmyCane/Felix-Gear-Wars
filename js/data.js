@@ -551,18 +551,50 @@
     c.story = { cap: 'Book 3: endless', short: 'Three lanes, every unit, every flank. The Horde never stops.', story: 'The lanes run on forever. Flank, freeze and build, and hold the Horde as long as you can.' };
     return c;
   };
-  // Books 2 and 3: what a unit costs to train and how long it takes (level 1 building). [food, wood, gold, runes, seconds].
-  // Food stays close to the old price. Ranged units lean on wood, magic units on runes, the rest on gold. Tier 1 to 10 times are unchanged.
-  F.TRAIN = {
-    spearman:   [15, 5, 5, 0, 6.5],   archer:     [15, 10, 5, 0, 7],     fighter:    [20, 5, 10, 0, 7.5],  assassin:  [20, 0, 15, 0, 8],
-    knight:     [25, 10, 20, 0, 8.5], tank:       [25, 15, 20, 0, 9],    mage:       [20, 5, 20, 15, 9.5], catapult:  [30, 30, 25, 0, 10],
-    monk:       [25, 0, 15, 25, 10.5], shield:    [35, 25, 30, 0, 11],
-    crossbow:   [20, 20, 15, 0, 9],   apprentice: [15, 0, 10, 15, 8],    rider:      [25, 10, 25, 0, 9.5], healer:    [20, 0, 15, 25, 9.5],
+  // Books 2 and 3: what each unit costs to train and how long it takes (level 1 building). [food, wood, gold, runes, seconds].
+  // Each book has its own table, so each book is balanced on its own: tools/balance_book2.py and tools/balance_book3.py write these.
+  F.TRAIN_BOOK = {
+  2: {
+    spearman: [15, 5, 5, 0, 6.5],
+    archer: [15, 10, 5, 0, 7],
+    mage: [20, 5, 20, 15, 9.5],
+    knight: [25, 10, 20, 0, 8.5],
+    fighter: [20, 5, 10, 0, 7.5],
+    catapult: [30, 30, 25, 0, 10],
+    apprentice: [15, 0, 10, 15, 8],
+    rider: [25, 10, 25, 0, 9.5],
+    monk: [25, 0, 15, 25, 10.5],
+    tank: [25, 15, 20, 0, 9],
+    assassin: [20, 0, 15, 0, 8],
+    shield: [35, 25, 30, 0, 11],
+    crossbow: [20, 20, 15, 0, 9],
+    healer: [20, 0, 15, 25, 9.5],
     battlemage: [35, 10, 30, 40, 12],
-    builder:    [25, 15, 20, 0, 9],   flanker:    [25, 5, 25, 0, 8.5],   freezer:    [15, 0, 10, 20, 8],   summoner:  [25, 0, 15, 30, 10],
+  },
+  3: {
+    spearman: [15, 5, 5, 0, 6.5],
+    archer: [15, 10, 5, 0, 7],
+    mage: [20, 5, 20, 15, 9.5],
+    knight: [25, 10, 20, 0, 8.5],
+    fighter: [20, 5, 10, 0, 7.5],
+    catapult: [30, 30, 25, 0, 10],
+    apprentice: [15, 0, 10, 15, 8],
+    rider: [25, 10, 25, 0, 9.5],
+    monk: [25, 0, 15, 25, 10.5],
+    tank: [25, 15, 20, 0, 9],
+    assassin: [20, 0, 15, 0, 8],
+    shield: [35, 25, 30, 0, 11],
+    crossbow: [20, 20, 15, 0, 9],
+    healer: [20, 0, 15, 25, 9.5],
+    battlemage: [35, 10, 30, 40, 12],
+    builder: [25, 15, 20, 0, 9],
+    flanker: [25, 5, 25, 0, 8.5],
+    freezer: [15, 0, 10, 20, 8],
+    summoner: [25, 0, 15, 30, 10],
+  },
   };
-  F.trainCost = function (type) { var t = F.TRAIN[type]; return t ? { food: t[0], wood: t[1], gold: t[2], runes: t[3] } : null; };
-  F.b2UnitTime = function (type) { var t = F.TRAIN[type]; return t ? t[4] : 10; };   // seconds to train a unit at level 1
+  F.trainCost = function (type, book) { var t = (F.TRAIN_BOOK[book || 2] || {})[type]; return t ? { food: t[0], wood: t[1], gold: t[2], runes: t[3] } : null; };
+  F.b2UnitTime = function (type, book) { var t = (F.TRAIN_BOOK[book || 2] || {})[type]; return t ? t[4] : 10; };   // seconds to train a unit at level 1
   F.B2_QUEUE = 6;                    // units a building can hold in its queue (was three)
   F.b2Config = function (ch, lv, o) {
     o = o || {}; var idx = (ch - 1) * F.B2_LV + (lv - 1), C = F.B2_CHAPTERS[ch - 1];
