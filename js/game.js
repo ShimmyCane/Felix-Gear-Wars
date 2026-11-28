@@ -106,7 +106,10 @@
   function ring(x, y, r, col) { parts.push({ k: 'ring', x: x, y: y, vx: 0, vy: 0, g: 0, life: 0.45, max: 1, r: r, col: col || '#fff2a0' }); }
   function floatText(x, y, s, col) { parts.push({ k: 'text', x: x, y: y, vx: 0, vy: -50, g: 0, life: 1.0, max: 1, s: s, col: col || '#fff' }); }
   function ux(u) { return u.x - scroll + L.bf.x; }
-  function uy(u) { return Art.groundY(L.bf) + 14 + u.y; }
+  // Book 3 has three lanes seen in book 1's side view: the front lane stands on the ground line, the others step back behind it.
+  function laneY(l) { return Art.groundY(L.bf) + 14 - 40 * (2 - l); }
+  function nearestLane(y) { var best = 0, bd = 1e9; for (var l = 0; l < 3; l++) { var d = Math.abs(laneY(l) - y); if (d < bd) { bd = d; best = l; } } return best; }
+  function uy(u) { return sim && sim.lanes > 1 ? laneY(u.lane) + (u.y - 26) * 0.1 : Art.groundY(L.bf) + 14 + u.y; }
   function coinFly(x, y, n) {
     var cnt = Math.min(5, 1 + Math.floor(n / 6));
     for (var i = 0; i < cnt; i++) parts.push({ k: 'coin', x: x, y: y, vx: (Math.random() - 0.5) * 120, vy: -120 - Math.random() * 80, g: 400, life: 1.1, max: 1, r: 7, t: 0 });
@@ -285,6 +288,10 @@
     var bf = L.bf, gy = Art.groundY(bf), i;
     Art.drawBattlefield(c, bf, scroll, cfg.biome, tAnim, { hpFrac: cfg.free ? 1 : sim.baseHp / sim.baseMax, ebx: sim.ebx, world: sim.world, towers: sim.structs.filter(function (s) { return s.tower; }) });
     c.save(); c.beginPath(); c.rect(bf.x, bf.y, bf.w, bf.h); c.clip();
+    if (sim.lanes > 1) {   // book 3: dashed lane lines, and the spike walls the builders place
+      for (i = 0; i < 3; i++) { c.strokeStyle = Art.ink; c.lineWidth = 1.6; c.setLineDash([10, 8]); c.globalAlpha = 0.45; c.beginPath(); c.moveTo(bf.x, laneY(i)); c.lineTo(bf.x + bf.w, laneY(i)); c.stroke(); c.globalAlpha = 1; c.setLineDash([]); }
+      sim.spikes.forEach(function (sp) { var spx = sp.x - scroll + bf.x, spy = laneY(sp.lane); c.fillStyle = sp.side === 'ally' ? '#b8844a' : '#7a3b30'; c.strokeStyle = Art.ink; c.lineWidth = 2; for (var k = -2; k <= 2; k++) { c.beginPath(); c.moveTo(spx + k * 12 - 5, spy + 4); c.lineTo(spx + k * 12, spy - 14); c.lineTo(spx + k * 12 + 5, spy + 4); c.closePath(); c.fill(); c.stroke(); } });
+    }
     var list = sim.units.slice().sort(function (a, b) { return uy(a) - uy(b); });
     for (i = 0; i < list.length; i++) {
       var u = list[i], sx = ux(u), sy = uy(u);
@@ -297,6 +304,7 @@
         continue;
       }
       Art.drawUnit(c, u, sx, sy, tAnim);
+      if (sim.lanes > 1 && u.id === b3Sel) { c.beginPath(); c.arc(sx, sy - 40 * u.scale, 26, 0, TAU); c.strokeStyle = Art.C('#ffd24a'); c.lineWidth = 3; c.stroke(); }
       if (u.state !== 'dying' && (u.hp < u.max || u.boss)) {
         var bw = (u.boss || u.champ) ? 100 : 34 + u.scale * 6, bx = sx - bw / 2, by = sy - 80 * u.scale * 1.3 - 4 + Art.flyY(u, tAnim);
         c.fillStyle = 'rgba(0,0,0,0.45)'; Art.rr(c, bx - 1.5, by - 1.5, bw + 3, 8, 4); c.fill();
@@ -381,7 +389,8 @@
     var sh = shake > 0.3 ? [(Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake] : [0, 0]; c.translate(sh[0], sh[1]);
     if (sim) {
       hudBtns = [];
-      if (sim.book === 3) drawTopBattle(c); else drawBattle(c);
+      drawBattle(c);
+      if (sim.book === 3) b3Buttons(c);
       if (sim.book === 3 && !b3Build) { /* the map is the screen */ } else if (sim.hasBuildings) { drawB2Board(c); drawB2Tray(c); } else { drawBoard(c); drawTray(c); }
       drawHUD(c); drawMini(c); if (+S.showFun) drawFun(c);
       if (sim.hasBuildings && (sim.book !== 3 || b3Build)) drawB2Popup(c);
@@ -463,13 +472,20 @@
     panel(c, L.bx, L.by, L.bw, L.bh, Art.C(T.panel2), 18);
     for (i = 0; i < sim.plotX.length; i++) {
       var p = plotXY(i), s = L.cs * 0.84, bid = sim.plotUse[i], b = bid ? findB(bid) : null, B = b ? F.B2_BUILDINGS[b.type] : null;
+      if (sim.book === 3 && i === F.B3_CASTLE_PLOT) { panel(c, p[0] - s / 2, p[1] - s / 2, s, s, Art.C('#3c6fb8'), 12); txt(c, 'Castle', p[0], p[1] - 4, 13, '#ffffff', 'center', '900'); txt(c, 'heroes', p[0], p[1] + 12, 12, '#ffffff', 'center', '700'); continue; }
       var hot = !b && b2Slot >= 0;
       panel(c, p[0] - s / 2, p[1] - s / 2, s, s, Art.C(b ? B2COL[B.kind === 'res' ? B.makes : 'unit'] : T.panel), 12);
       if (hot) { c.strokeStyle = Art.C('#ffd24a'); c.lineWidth = 3; c.setLineDash([6, 5]); Art.rr(c, p[0] - s / 2 + 3, p[1] - s / 2 + 3, s - 6, s - 6, 10); c.stroke(); c.setLineDash([]); }
       if (b) {
         if (b2Bld === b.id) { c.strokeStyle = Art.C('#fff2a0'); c.lineWidth = 4; Art.rr(c, p[0] - s / 2 - 2, p[1] - s / 2 - 2, s + 4, s + 4, 14); c.stroke(); }
-        txt(c, B.name, p[0], p[1] - 8, 13, Art.ink, 'center', '900');
-        txt(c, 'lv ' + b.level + (b.queue.length ? '  ·  ' + b.queue.length + ' training' : ''), p[0], p[1] + 12, 12, Art.ink, 'center', '700');
+        if (B.kind === 'unit') {   // a unit building wears its first unit as a book 1 gear
+          Art.drawGear(c, { type: B.units[0], level: b.level, charge: 0, need: 1, active: !!b.queue.length, locked: false, pulse: 0 }, p[0], p[1] - s * 0.14, s * 0.27, tAnim * 0.6, {});
+          txt(c, B.name, p[0], p[1] + s * 0.34, 11, Art.ink, 'center', '900');
+          txt(c, 'lv ' + b.level + (b.queue.length ? ' · ' + b.queue.length : ''), p[0], p[1] + s * 0.47, 10, Art.ink, 'center', '700');
+        } else {
+          txt(c, B.name, p[0], p[1] - 8, 13, Art.ink, 'center', '900');
+          txt(c, 'lv ' + b.level, p[0], p[1] + 12, 12, Art.ink, 'center', '700');
+        }
       } else txt(c, 'plot ' + (i + 1), p[0], p[1] + 4, 13, T.text, 'center', '700');
     }
   }
@@ -525,46 +541,13 @@
   }
   // ---- book 3 battle, seen from above: three lanes, units as tokens, flank arrows on the selected one -----------------
   var b3Sel = 0;
-  function laneH() { return (L.bf.h - 20) / 3; }
-  function laneY(l) { return L.bf.y + 10 + l * laneH() + laneH() / 2; }
-  function drawTopBattle(c) {
-    var T = Art.theme, hh = laneH(), i, l;
-    c.fillStyle = Art.C(T.panel2); c.fillRect(0, L.bf.y, W, L.bf.h);
-    for (l = 0; l < 3; l++) {
-      var y0 = L.bf.y + 10 + l * hh;
-      c.fillStyle = l % 2 ? 'rgba(120,160,80,0.22)' : 'rgba(180,150,90,0.22)'; c.fillRect(0, y0 + 2, W, hh - 4);
-      c.strokeStyle = Art.ink; c.lineWidth = 2; c.setLineDash([10, 8]); c.beginPath(); c.moveTo(0, y0 + hh / 2); c.lineTo(W, y0 + hh / 2); c.stroke(); c.setLineDash([]);
-    }
-    // castle on the left, fortress on the right
-    var cx = 90 - scroll, fx = sim.ebx + 60 - scroll;
-    panel(c, cx - 36, L.bf.y + 10, 72, L.bf.h - 20, Art.C('#3c6fb8'), 10);
-    panel(c, fx - 36, L.bf.y + 10, 72, L.bf.h - 20, Art.C('#8a3b30'), 10);
-    txt(c, 'Fortress ' + Math.round(100 * sim.fort.hp / sim.fort.max) + '%', fx, L.bf.y + 4, 13, T.text, 'center', '800');
-    sim.units.forEach(function (u) {
-      if (u.dead) return;
-      var sx = u.x - scroll, sy = laneY(u.lane), r = u.boss ? 26 : u.champ ? 20 : 15, col = u.side === 'ally' ? '#2d6cdf' : '#d9302a';
-      if (u.state === 'dying') { c.globalAlpha = 0.4; }
-      c.beginPath(); c.arc(sx, sy, r, 0, TAU); c.fillStyle = col; c.fill(); c.lineWidth = 2; c.strokeStyle = Art.ink; c.stroke(); c.globalAlpha = 1;
-      txt(c, (F.UNITS[u.type] ? F.UNITS[u.type].name : u.type).slice(0, 1), sx, sy + 5, 14, '#ffffff', 'center', '900');
-      if (u.side === 'ally') { c.fillStyle = 'rgba(0,0,0,0.3)'; c.fillRect(sx - 14, sy - r - 8, 28, 4); c.fillStyle = '#8fd18a'; c.fillRect(sx - 14, sy - r - 8, 28 * Math.max(0, u.hp / u.max), 4); }
-      if (u.id === b3Sel) { c.beginPath(); c.arc(sx, sy, r + 6, 0, TAU); c.strokeStyle = Art.C('#ffd24a'); c.lineWidth = 3; c.stroke(); }
-    });
-    sim.spikes.forEach(function (sp) {
-      var sx = sp.x - scroll, sy = laneY(sp.lane);
-      c.fillStyle = sp.side === 'ally' ? '#b8844a' : '#7a3b30'; c.strokeStyle = Art.ink; c.lineWidth = 2;
-      for (var k = -2; k <= 2; k++) { c.beginPath(); c.moveTo(sx + k * 12 - 5, sy + 12); c.lineTo(sx + k * 12, sy - 10); c.lineTo(sx + k * 12 + 5, sy + 12); c.closePath(); c.fill(); c.stroke(); }
-    });
-    sim.proj.forEach(function (p) {
-      var f = Math.min(1, p.t / Math.max(0.01, p.dur)), px = p.x0 + (p.x1 - p.x0) * f - scroll;
-      c.beginPath(); c.arc(px, laneY(1), 3, 0, TAU); c.fillStyle = p.side === 'ally' ? '#9fd0ff' : '#ffb0a0'; c.fill();
-    });
-    b3Buttons(c);
-  }
   function b3Rects() {
     var y = H - 84, out = {};
     out.move = { x: 24, y: y, w: 118, h: 36 }; out.attach = { x: 152, y: y, w: 118, h: 36 };
     out.hide = { x: 280, y: y, w: 118, h: 36 }; out.clear = { x: 408, y: y, w: 118, h: 36 };
     out.build = { x: W - 150, y: L.bf.y + 6, w: 128, h: 34 };
+    out.heroAttack = { x: 560, y: y, w: 118, h: 36 }; out.heroDefend = { x: 688, y: y, w: 118, h: 36 };
+    out.heroUp = { x: 816, y: y, w: 118, h: 36 }; out.heroDown = { x: 944, y: y, w: 118, h: 36 };
     return out;
   }
   function b3Buttons(c) {
@@ -572,6 +555,10 @@
     panel(c, R.build.x, R.build.y, R.build.w, R.build.h, Art.C(b3Build ? T.gold2 : T.btn), 12);
     txt(c, b3Build ? 'Close build' : 'Build', R.build.x + R.build.w / 2, R.build.y + 22, 14, T.text, 'center', '800');
     var su = b3Sel ? sim.units.filter(function (u) { return u.id === b3Sel && !u.dead; })[0] : null;
+    if (sim.hero && !sim.hero.dead) {
+      [['heroAttack', 'Attack'], ['heroDefend', 'Defend'], ['heroUp', 'Lane up'], ['heroDown', 'Lane down']].forEach(function (p) { var r = R[p[0]]; panel(c, r.x, r.y, r.w, r.h, Art.C(T.btn), 12); txt(c, p[1], r.x + r.w / 2, r.y + 23, 15, T.text, 'center', '800'); });
+      txt(c, 'Hero ' + Math.round(sim.hero.hp) + ' hp', W - 24, H - 96, 14, Art.ink, 'right', '800');
+    } else txt(c, 'Hero in ' + Math.ceil(Math.max(0, sim.heroT)) + ' s', W - 24, H - 96, 14, Art.ink, 'right', '800');
     if (!su || su.side !== 'ally') { b3Sel = 0; return; }
     txt(c, Art.unitName(su.type) + (su.hidden ? ' (hidden)' : su.order ? ' (' + su.order.type + ')' : ''), 24, H - 96, 14, Art.ink, 'left', '800');
     [['move', 'Move'], ['attach', 'Attach'], ['hide', 'Hide'], ['clear', 'Clear']].forEach(function (p) {
@@ -586,13 +573,15 @@
   function b3Tap(x, y) {
     var R = b3Rects(), su = b3Sel ? sim.units.filter(function (u) { return u.id === b3Sel && !u.dead; })[0] : null;
     if (hit(R.build, x, y)) { b3Build = !b3Build; layout(); Au.play('tap'); return; }
+    var hc = null; if (hit(R.heroAttack, x, y)) hc = ['attack', 'The hero leads the attack']; else if (hit(R.heroDefend, x, y)) hc = ['defend', 'The hero brings the army back to the castle']; else if (hit(R.heroUp, x, y)) hc = ['up', 'The hero moves up a lane']; else if (hit(R.heroDown, x, y)) hc = ['down', 'The hero moves down a lane'];
+    if (hc) { var hr = sim.heroCommand(hc[0]); if (hr === 'none') say('No hero yet'); else if (hr === 'edge') say('No lane that way'); else { say(hc[1]); Au.play('tap'); } return; }
     if (su) {
       if (hit(R.move, x, y)) { b3Mode = 'move'; Au.play('tap'); return; }
       if (hit(R.attach, x, y)) { b3Mode = 'attach'; Au.play('tap'); return; }
       if (hit(R.hide, x, y)) { sim.order(su, 'hide'); b3Mode = null; say(Art.unitName(su.type) + ' hides behind the castle'); Au.play('tap'); return; }
       if (hit(R.clear, x, y)) { sim.order(su, 'clear'); b3Mode = null; Au.play('tap'); return; }
       if (b3Mode === 'move') {
-        var lane = Math.max(0, Math.min(2, Math.floor((y - L.bf.y - 10) / laneH())));
+        var lane = nearestLane(y);
         sim.order(su, 'move', { x: x + scroll, lane: lane }); b3Mode = null; Au.play('tap'); return;
       }
       if (b3Mode === 'attach') {
@@ -620,6 +609,7 @@
     var cell = cellAt(x, y);
     if (cell && cell[1] * sim.cols + cell[0] < sim.plotX.length) {
       var plot = cell[1] * sim.cols + cell[0];
+      if (sim.book === 3 && plot === F.B3_CASTLE_PLOT) { say('The castle sends a hero now and then'); return; }
       if (sim.plotUse[plot]) { b2Bld = sim.plotUse[plot]; Au.play('tap'); return; }
       if (b2Slot >= 0) { var res = sim.b2Place(b2Slot, plot); if (res === 'ok') { b2Slot = -1; Au.play('place'); } else say(placeMsg(res)); }
       else say('Tap a building card first, then a plot');

@@ -2,6 +2,14 @@
 
 Newest first. The version number is `F.version` in `js/data.js`; the balance numbers are in `research/balance.md`.
 
+## 0.12.0
+
+- **Book 3 allies have 2.5 times their hit points**, so they last through a wave. (A test at 4 and 6 times gave no more gain: the armies are still limited by how many units the buildings make.)
+- **The castle is always plot 1 in book 3.** Nothing is built there. The castle sends a hero every 90, 150 or 240 seconds (easy, medium, hard).
+- **Hero.** Tough (1,200 hit points) and it guards the castle until you give an order. Attack sends every ally forward. Defend brings them back to the castle. Lane up and Lane down move the hero a lane. Allies in the hero's lane and within 360 fight at 1.2 times attack and defence.
+- **Book 3 battle uses book 1's side view.** The three lanes show as dashed lines, and units stand at their lane's depth. Tap targets follow the drawing.
+- **Book 2 and 3 unit buildings show book 1's gear art** on their plots.
+
 ## 0.11.0
 
 - **Units cost four things in books 2 and 3.** Each unit takes food, wood, gold and runes to train (the table is `F.TRAIN` in `js/data.js`). Ranged units lean on wood, magic units on runes, the rest on gold. The training popup shows every cost, and a short one shows in red.

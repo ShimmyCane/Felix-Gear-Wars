@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var F = globalThis.FGW = globalThis.FGW || {};
-  F.version = '0.11.0';
+  F.version = '0.12.0';
 
   // ---- the world --------------------------------------------------------------------------
   F.VIEW_W = 1280;             // logical width of the screen
@@ -72,11 +72,11 @@
   };
   // tuned2:end
   // tuned3:begin (written by tools/balance_tune.js apply; re-tune after changing the rules)
-  F.B3_MODE_PRESS = { easy: 1.127, medium: 1.033, hard: 1.737 };
+  F.B3_MODE_PRESS = {easy: 0.715, medium: 0.685, hard: 1.2} ;
   F.B3_LEVEL_PRESS = {
-    easy: [1, 1, 0.716, 0.846, 0.846, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.92, 0.92, 0.92, 0.92, 0.778, 1, 1, 1, 1, 0.92, 1, 1, 0.92, 1, 1, 1, 0.92, 0.92, 0.92, 0.92, 0.92, 0.92, 0.92, 0.92, 0.92, 0.92, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-    medium: [1.363, 1.225, 1.127, 1.6, 1.6, 1.6, 1.472, 1.6, 1.6, 1.472, 1.482, 1.464, 1.464, 1.331, 1.14, 1.024, 1.024, 1.21, 1.126, 0.867, 1.364, 1.472, 1.348, 1.239, 1.239, 1.239, 1.239, 1.113, 1.224, 1.024, 1.224, 1.224, 1.224, 1.126, 1.126, 1.037, 1.14, 1.113, 1.14, 1.024, 1.224, 1.113, 1.224, 1.379, 1.14, 1.363, 1.224, 1.6, 1.481, 1.481],
-    hard: [1.331, 1.012, 0.788, 1.379, 1.379, 1.464, 1.347, 1.24, 1.21, 1.113, 1.024, 1.036, 0.857, 0.942, 0.857, 0.778, 0.797, 0.931, 0.788, 0.788, 0.942, 1.127, 0.878, 0.846, 0.856, 0.788, 0.716, 0.716, 0.868, 0.797, 0.867, 0.856, 0.856, 0.846, 0.867, 0.659, 0.778, 0.725, 0.716, 0.788, 0.867, 0.788, 0.931, 0.797, 0.778, 0.857, 0.857, 1.024, 1.036, 0.931]
+    easy: [0.846, 0.92, 0.716, 0.846, 0.846, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.92, 0.92, 0.92, 0.92, 0.716, 1, 1, 1, 1, 0.92, 1, 1, 0.92, 1, 1, 1, 0.92, 0.92, 0.92, 0.92, 0.92, 0.92, 0.92, 0.92, 0.92, 0.92, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    medium: [1.154, 1.24, 1.364, 1.6, 1.6, 1.6, 1.6, 1.472, 1.472, 1.37, 1.6, 1.347, 1.347, 1.348, 1.154, 1.126, 1.126, 1.024, 0.953, 0.867, 1.38, 1.371, 1.24, 1.379, 1.154, 1.379, 1.379, 1.239, 1.363, 1.14, 1.481, 1.481, 1.481, 1.363, 1.239, 1.155, 1.254, 1.126, 1.269, 1.126, 1.481, 1.481, 1.363, 1.536, 1.379, 1.6, 1.6, 1.6, 1.6, 1.6],
+    hard: [1.225, 1.012, 1.049, 1.6, 1.6, 1.239, 1.14, 1.141, 1.024, 0.942, 1.126, 1.14, 1.037, 0.954, 0.943, 0.856, 0.797, 0.788, 0.788, 0.725, 0.867, 1.037, 0.808, 0.778, 0.867, 0.797, 0.788, 0.788, 0.868, 0.797, 0.954, 0.788, 0.797, 0.778, 0.734, 0.725, 0.778, 0.797, 0.788, 0.867, 0.878, 0.867, 0.857, 0.877, 0.778, 0.943, 1.037, 1.024, 1.254, 1.126]
   };
   // tuned3:end
   F.modeOf = function (m) { return F.MODES[m] ? m : 'medium'; };
@@ -493,6 +493,13 @@
     icehouse: { name: 'Ice house', kind: 'unit', units: ['freezer'], cost: 90, wood: 0, runes: 20, unlock: 2 },
     shrine:   { name: 'Shrine', kind: 'unit', units: ['summoner'], cost: 100, wood: 0, runes: 30, unlock: 4 },
   };
+  // Book 3 survival: allies have this many times their book 1 hit points, so they last through a wave.
+  F.B3_ALLY_HP = 2.5;
+  // Book 3 castle: always plot 1 (it cannot be built on). It sends a hero every so many seconds, fewer on harder modes.
+  F.B3_CASTLE_PLOT = 0;
+  F.HERO_EVERY = { easy: 90, medium: 150, hard: 240 };
+  F.HERO_AURA = { range: 360, boost: 1.2 };        // allies in the hero's lane within this distance fight at 1.2 times attack and defence
+  F.UNITS.hero = { name: 'Hero', cost: 0, hp: 1200, atk: 50, def: 20, range: 56, speed: 60, cd: 1.0, kind: 'melee', power: 'hero', draw: 'knight', vs: {}, order: 0, summoned: true, hero: true };
   F.B3_SPIKE = { dps: 22, life: 30, radius: 50, max: 3, every: 12 };   // the builder's spike walls
 
   // ---- book 3: the Lanes. Seen from above, three lanes, nine plots, and fighters that can flank into the next lane. -----

@@ -47,6 +47,9 @@
     // plots sit in a grid of this.cols columns; the x of a plot depends on its column, so each column has a spot along the front (180 to 980)
     this.trickleSec = o.trickleSec || F.TRICKLE_SEC; this.trickleAcc = 0;   // book 2 and 3: the base gold trickle (one coin every trickleSec)
     for (var pi = 0; pi < (cfg.plots || 0); pi++) this.plotX.push(180 + (pi % this.cols) * 800 / Math.max(1, this.cols - 1));
+    // book 3: the castle is always plot 1, so no building goes there (-1 marks it taken, and the screen draws the castle)
+    this.hero = null; this.heroT = F.HERO_EVERY[cfg.mode] || F.HERO_EVERY.medium;
+    if (this.book === 3) this.plotUse[F.B3_CASTLE_PLOT] = -1;
     if (!this.book) F.multTiers(cfg.free ? 0 : cfg.ch).forEach(function (v) { this.pool.push('mult@' + v); }, this);
     this.maxChamps = o.champMax || F.MAX_CHAMPIONS;                                                       // the player's champions on the map at once
     this.maxArmy = cfg.free ? (o.armyMax || F.FREE_ARMY) : F.MAX_UNITS;                                  // free-for-all: 25 by default, up to 50 in the settings
@@ -409,6 +412,7 @@
     if (d.champ) sc = d.scale * (1 + (level - 1) * 0.08);
     var special = side === 'ally' && this.specialty === type;
     if (special) { hp *= F.SPECIALTY_BONUS; atk *= F.SPECIALTY_BONUS; }
+    if (side === 'ally' && this.book === 3 && !d.hero) hp *= F.B3_ALLY_HP;     // book 3: allies last longer
     if (boss) { hp *= 9; atk *= 2.2; def *= 1.6; spd *= 0.85; sc = 2.8; }
     var u = { id: this.nid++, side: side, type: type, level: level, boss: !!boss, x: x, y: this.rnd() * 52, hp: hp, max: hp, atk: atk, def: def,
       range: d.range * (boss || level >= F.BIG_LEVEL ? 1.25 : 1), big: level >= F.BIG_LEVEL, minRange: d.minRange || 0, speed: spd, cdMax: d.cd, cd: 0.3 + this.rnd() * 0.4, state: 'fall', t: 0,
@@ -602,6 +606,7 @@
     if (type === 'clear') { u.order = null; return 'ok'; }
     if (type === 'hide') { u.order = { type: 'hide', x: 150, lane: u.lane }; return 'ok'; }
     if (type === 'move') { u.order = { type: 'move', x: Math.max(120, Math.min(this.world - 60, o.x)), lane: o.lane }; return 'ok'; }
+    if (type === 'guard') { u.order = { type: 'guard', x: Math.max(120, Math.min(this.world - 60, o.x)), lane: o.lane }; return 'ok'; }   // holds the spot, fights what comes in reach
     if (type === 'follow') { var t = this.units.filter(function (x) { return x.id === o.id && !x.dead && x.id !== u.id; })[0]; if (!t) return 'none'; u.order = { type: 'follow', id: t.id, x: t.x, lane: t.lane }; return 'ok'; }
     return 'none';
   };
@@ -613,8 +618,10 @@
     if (Math.abs(dx) <= reach) {
       if (o.type === 'hide') { u.hidden = true; u.anim = 'idle'; return true; }
       if (o.type === 'move') { u.order = null; return false; }
+      if (o.type === 'guard') { u.hold = true; return false; }   // at the post: the normal fight runs, but no advancing
       return false;                                              // following: fights with the unit it is attached to
     }
+    u.hold = false;
     var step = Math.min(Math.abs(dx), u.speed * dt * (u.slow > 0 ? 0.4 : 1)) * Math.sign(dx);
     u.x += step; u.dir = Math.sign(dx) || u.dir; u.anim = 'walk';
     return true;
@@ -685,6 +692,44 @@
         }
       }
     }
+  };
+  // ---- book 3 hero: the castle sends one now and then (by difficulty). It lifts the allies in its lane and gives orders.
+  P.heroTick = function (dt) {
+    var h = this.hero;
+    if (h && (h.dead || h.state === 'dying')) { this.hero = null; h = null; }
+    if (!h) {
+      this.heroT -= dt;
+      if (this.heroT <= 0) {
+        h = this.makeUnit('ally', 'hero', 1, 150, false); h.lane = 1; this.hero = h;
+        h.order = { type: 'guard', x: 260, lane: 1 };         // guards the castle until a command is given
+        this.heroT = F.HERO_EVERY[this.cfg.mode] || F.HERO_EVERY.medium;
+        this.emit({ k: 'hero', x: 150, y: 0 });
+      }
+    }
+    // the aura: allies in the hero's lane and range fight at the boost; everyone else at the normal numbers
+    this.units.forEach(function (u) {
+      if (u.side !== 'ally' || u.hero) return;
+      if (u.atkBase === undefined) { u.atkBase = u.atk; u.defBase = u.def; }
+      var inAura = h && !h.dead && u.lane === h.lane && Math.abs(u.x - h.x) <= F.HERO_AURA.range;
+      var f = inAura ? F.HERO_AURA.boost : 1;
+      u.atk = u.atkBase * f; u.def = u.defBase * f;
+    });
+  };
+  // hero commands. 'attack': every ally advances to the nearest enemy (or the middle of the map if none).
+  // 'defend': every ally falls back to the castle. 'up' / 'down': the hero moves a lane (its aura moves with it).
+  P.heroCommand = function (cmd) {
+    var h = this.hero; if (!h || h.dead) return 'none';
+    if (cmd === 'up' || cmd === 'down') {
+      var nl = h.lane + (cmd === 'up' ? -1 : 1);
+      if (nl < 0 || nl >= this.lanes) return 'edge';
+      h.lane = nl; h.order = null; this.emit({ k: 'flank', x: h.x, y: h.y, lane: nl });
+      return 'ok';
+    }
+    var self = this, near = null;
+    this.units.forEach(function (e) { if (e.side === 'enemy' && !e.dead && e.state !== 'dying' && (near === null || e.x < near)) near = e.x; });
+    var tx = cmd === 'defend' ? 260 : (near !== null ? near + 40 : this.world * 0.5);
+    this.units.forEach(function (u) { if (u.side === 'ally' && !u.dead && u.state !== 'dying') self.order(u, cmd === 'defend' ? 'guard' : 'move', { x: tx, lane: u.lane }); });
+    return 'ok';
   };
   // Book 2 level: how far the next unit is along in a building's queue (for the countdown)
   P.b2Countdown = function (bid) {
@@ -765,6 +810,7 @@
     u.t += dt; u.cd -= dt; if (u.flash > 0) u.flash -= dt;
     if (u.converted > 0) { u.converted -= dt; if (u.converted <= 0) { u.converted = 0; u.side = 'enemy'; u.dir = -1; this.emit({ k: 'unconvert', x: u.x, y: u.y }); } }
     if (u.state === 'dying') { if (u.t > 0.75) u.dead = true; return; }
+    if (!u.order) u.hold = false;
     if (u.order && u.side === 'ally' && this.runOrder(u, dt)) return;      // a commanded unit moves on its own orders
     if (u.state === 'fall') { if (u.t >= 0.55) { u.state = 'getup'; u.t = 0; this.emit({ k: 'land', x: u.x, y: u.y, side: u.side }); } return; }
     if (u.state === 'getup') { u.anim = 'getup'; if (u.t >= 0.45) { u.state = 'go'; u.t = 0; } return; }
@@ -810,6 +856,7 @@
         else if (u.retreat && (!near || u.hp >= 0.8 * u.max)) u.retreat = false;
       }
     }
+    if (u.hold && u.side === 'ally' && !(target && Math.abs(target.x - u.x) <= u.range)) { u.anim = 'idle'; return; }   // guarding: no advance without an enemy in reach
     if (u.retreat && u.x > 110 && !(target && Math.abs(target.x - u.x) <= u.range)) {
       u.x -= dir * spd * dt; u.anim = 'walk';                     // fall back toward the castle and the other fighters
     } else if (target || st) {
@@ -1029,6 +1076,7 @@
     this.tickAcc += dt * 4 / this.heartPeriod;
     while (this.tickAcc >= 1) { this.tickAcc -= 1; this.ticks++; this.fillGears(1); this.emit({ k: 'tick' }); }
     if (this.hasBuildings) { this.b2Tick(dt); this.trickle(dt); }
+    if (this.book === 3 && this.status === 'running') this.heroTick(dt);
     this.heartA += (this.ticks * Math.PI / 2 - 0.35 - this.heartA) * Math.min(1, dt * 16);
     if (this.status === 'running') {
       this.waveTimer -= dt;
